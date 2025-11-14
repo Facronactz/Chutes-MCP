@@ -1,3 +1,8 @@
 .env
 .venv
 logs
+
+__pycache__/
+*.pyc
+
+instance_data/
