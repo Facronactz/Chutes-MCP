@@ -1,0 +1,8 @@
+# API Configuration for Chutes Services
+
+chutes:
+  api_token: ${CHUTES_API_TOKEN}
+  endpoints:
+    llm: https://llm.chutes.ai/v1/chat/completions
+    image: https://image.chutes.ai/generate
+    music: https://chutes-diffrhythm.chutes.ai/generate

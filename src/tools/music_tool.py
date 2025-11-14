@@ -3,6 +3,7 @@ import requests
 import uuid
 from typing import Optional
 from src.app import mcp
+from src.config import config
 
 @mcp.tool(
     name="generate_music",
@@ -21,9 +22,13 @@ def generate_music(
     :param audio_b64: A base64 encoded audio file to be used as input.
     :return: The path to the saved audio file, or an error message.
     """
-    api_token = os.getenv("CHUTES_API_TOKEN")
+    api_token = config.get("chutes.api_token")
     if not api_token:
         return "Error: CHUTES_API_TOKEN environment variable not set."
+
+    music_endpoint = config.get("chutes.endpoints.music")
+    if not music_endpoint:
+        return "Error: Music endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -38,7 +43,7 @@ def generate_music(
 
     try:
         response = requests.post(
-            "https://chutes-diffrhythm.chutes.ai/generate",
+            music_endpoint,
             headers=headers,
             json=body
         )

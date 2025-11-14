@@ -4,6 +4,7 @@ import json
 import requests
 from typing import List, Dict
 from src.app import mcp
+from src.config import config
 
 @mcp.tool(
     name="chutes_chat_stream",
@@ -24,9 +25,13 @@ async def stream_chat(
     :param max_tokens: The maximum number of tokens to generate.
     :return: The full response from the LLM.
     """
-    api_token = os.getenv("CHUTES_API_TOKEN")
+    api_token = config.get("chutes.api_token")
     if not api_token:
         return "Error: CHUTES_API_TOKEN environment variable not set."
+
+    llm_endpoint = config.get("chutes.endpoints.llm")
+    if not llm_endpoint:
+        return "Error: LLM endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -44,7 +49,7 @@ async def stream_chat(
     full_response = ""
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            "https://llm.chutes.ai/v1/chat/completions",
+            llm_endpoint,
             headers=headers,
             json=body
         ) as response:
@@ -85,9 +90,13 @@ def chat(
     :param max_tokens: The maximum number of tokens to generate.
     :return: The content of the response from the LLM.
     """
-    api_token = os.getenv("CHUTES_API_TOKEN")
+    api_token = config.get("chutes.api_token")
     if not api_token:
         return "Error: CHUTES_API_TOKEN environment variable not set."
+
+    llm_endpoint = config.get("chutes.endpoints.llm")
+    if not llm_endpoint:
+        return "Error: LLM endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -104,7 +113,7 @@ def chat(
 
     try:
         response = requests.post(
-            "https://llm.chutes.ai/v1/chat/completions",
+            llm_endpoint,
             headers=headers,
             json=body
         )

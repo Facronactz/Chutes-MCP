@@ -3,6 +3,7 @@ import aiohttp
 import uuid
 from typing import Optional
 from src.app import mcp
+from src.config import config
 
 @mcp.tool(
     name="generate_image",
@@ -27,9 +28,13 @@ async def generate_image(
     :param seed: A seed for reproducible generation.
     :return: The path to the saved image, or an error message.
     """
-    api_token = os.getenv("CHUTES_API_TOKEN")
+    api_token = config.get("chutes.api_token")
     if not api_token:
         return "Error: CHUTES_API_TOKEN environment variable not set."
+
+    image_endpoint = config.get("chutes.endpoints.image")
+    if not image_endpoint:
+        return "Error: Image endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -49,7 +54,7 @@ async def generate_image(
     try:
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                "https://image.chutes.ai/generate",
+                image_endpoint,
                 headers=headers,
                 json=body
             ) as response:

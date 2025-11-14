@@ -302,6 +302,7 @@ dependencies = [
     { name = "aiohttp" },
     { name = "fastmcp" },
     { name = "python-dotenv" },
+    { name = "pyyaml" },
     { name = "requests" },
 ]
 
@@ -310,6 +311,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.2" },
     { name = "fastmcp", specifier = ">=2.13.0.2" },
     { name = "python-dotenv", specifier = ">=1.2.1" },
+    { name = "pyyaml", specifier = ">=6.0.3" },
     { name = "requests", specifier = ">=2.32.5" },
 ]
 
