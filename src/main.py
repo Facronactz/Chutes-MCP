@@ -1,11 +1,5 @@
-from fastmcp import FastMCP
+# This file is used to ensure that all tools are loaded.
+# By importing the modules containing the tools, we make sure the @mcp.tool decorator is executed.
 
-mcp = FastMCP("My MCP Server")
-
-@mcp.tool
-def greet(name: str) -> str:
-    """Says hello to someone."""
-    return f"Hello, {name}!"
-
-if __name__ == "__main__":
-    mcp.run(transport="http", port=8000)
+from .tools import llm_tool
+from .tools import image_tool
