@@ -6,3 +6,6 @@ chutes:
     llm: https://llm.chutes.ai/v1/chat/completions
     image: https://image.chutes.ai/generate
     music: https://chutes-diffrhythm.chutes.ai/generate
+    text_to_video: https://chutes-wan2-1-14b.chutes.ai/text2video
+    image_to_video: https://chutes-wan2-1-14b.chutes.ai/image2video
+    image_edit: https://chutes-qwen-image-edit-2509.chutes.ai/generate

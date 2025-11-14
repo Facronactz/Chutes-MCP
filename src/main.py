@@ -4,3 +4,4 @@
 from .tools import llm_tool
 from .tools import image_tool
 from .tools import music_tool
+from .tools import video_tool
