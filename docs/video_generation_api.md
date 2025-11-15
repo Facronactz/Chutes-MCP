@@ -60,7 +60,38 @@ The body of your `POST` request should be a JSON object that conforms to the `Vi
 
 ---
 
-#### Output (for both endpoints)
+### Image-to-Video (Fast)
+
+#### Endpoint Overview
+
+*   **Public Path:** `/generate`
+*   **URL:** `https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate`
+*   **Method:** `POST`
+*   **Authentication:** Requests must be authenticated using a Bearer token in the `Authorization` header.
+
+---
+
+#### Input Schema (`I2VArgs`)
+
+##### Required Properties:
+
+*   `prompt` (string): A text description of the desired video.
+*   `image` (string): Image URL or base64 encoded data.
+
+##### Optional Properties:
+
+*   `negative_prompt` (string): A text description of what to avoid in the video.
+*   `resolution` (string, default: "480p"): The resolution of the video.
+*   `fps` (integer, default: 16): The frames per second of the video.
+*   `frames` (integer, default: 81): The number of frames to generate.
+*   `guidance_scale` (number, default: 1): A parameter to control how much the model should follow the prompt.
+*   `guidance_scale_2` (number, default: 1): A second guidance scale parameter.
+*   `seed` (integer): A seed for reproducible generation.
+*   `fast` (boolean, default: true): Enables ultra fast pruna mode.
+
+---
+
+#### Output (for all endpoints)
 
 *   **Content-Type:** `video/mp4`
 *   The response body will be the raw video data.
@@ -69,41 +100,25 @@ The body of your `POST` request should be a JSON object that conforms to the `Vi
 
 #### Examples
 
-##### `curl` (Text-to-Video)
+##### `curl` (Image-to-Video - Fast)
 
 ```bash
 curl -X POST \
-    https://chutes-wan2-1-14b.chutes.ai/text2video \
+    https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate \
     -H "Authorization: Bearer $CHUTES_API_TOKEN" \
     -H "Content-Type: application/json" \
     -d '{
-        "fps": 24,
-        "steps": 25,
-        "frames": 81,
+        "fps": 16,
+        "fast": true,
+        "image": "example-string",
         "prompt": "example-string",
-        "resolution": "832*480",
-        "sample_shift": null,
-        "guidance_scale": 5
+        "resolution": "480p",
+        "negative_prompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+        "guidance_scale_2": 1
     }'
 ```
 
-##### `curl` (Image-to-Video)
-
-```bash
-curl -X POST \
-    https://chutes-wan2-1-14b.chutes.ai/image2video \
-    -H "Authorization: Bearer $CHUTES_API_TOKEN" \
-    -H "Content-Type: application/json" \
-    -d '{
-        "steps": 25,
-        "frames": 81,
-        "prompt": "example-string",
-        "image_b64": "example-string",
-        "sample_shift": null
-    }'
-```
-
-##### Python (`requests`) (Image-to-Video)
+##### Python (`requests`) (Image-to-Video - Fast)
 
 ```python
 import requests
@@ -117,17 +132,15 @@ def invoke_chute():
     }
     
     body = {
-      "seed": 42,
-      "steps": 25,
+      "image": "example-string",
+      "frames": 81,
       "prompt": "example-string",
-      "image_b64": "example-string",
-      "sample_shift": null,
-      "single_frame": False,
-      "guidance_scale": 5
+      "negative_prompt": "色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走",
+      "guidance_scale_2": 1
     }
 
     response = requests.post(
-        "https://chutes-wan2-1-14b.chutes.ai/image2video",
+        "https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate",
         headers=headers,
         json=body
     )

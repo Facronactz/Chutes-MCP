@@ -148,3 +148,84 @@ def generate_video_from_image(
         return f"Error calling Chutes Image-to-Video API: {e}"
     except Exception as e:
         return f"An unexpected error occurred: {e}"
+
+@mcp.tool(
+    name="generate_video_from_image_fast",
+    description="Generates a video from an image using a fast model."
+)
+def generate_video_from_image_fast(
+    prompt: str,
+    image: str,
+    negative_prompt: Optional[str] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
+    fps: int = 16,
+    frames: int = 81,
+    guidance_scale: float = 1.0,
+    guidance_scale_2: float = 1.0,
+    seed: Optional[int] = None,
+    fast: bool = True,
+    resolution: str = "480p",
+) -> str:
+    """
+    Generates a video from an image using the fast Chutes image-to-video API.
+
+    :param prompt: A text description of the desired video.
+    :param image: Image URL or base64 encoded data.
+    :param negative_prompt: A text description of what to avoid in the video.
+    :param fps: The frames per second of the video.
+    :param frames: The number of frames to generate.
+    :param guidance_scale: A parameter to control how much the model should follow the prompt.
+    :param guidance_scale_2: A second guidance scale parameter.
+    :param seed: A seed for reproducible generation.
+    :param fast: Enables ultra fast pruna mode.
+    :param resolution: The resolution of the video.
+    :return: The path to the saved video, or an error message.
+    """
+    api_token = config.get("chutes.api_token")
+    if not api_token:
+        return "Error: CHUTES_API_TOKEN environment variable not set."
+
+    video_endpoint = config.get("chutes.endpoints.image_to_video_fast")
+    if not video_endpoint:
+        return "Error: Fast image-to-video endpoint not configured in config.yaml."
+
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        "prompt": prompt,
+        "image": image,
+        "negative_prompt": negative_prompt,
+        "fps": fps,
+        "frames": frames,
+        "guidance_scale": guidance_scale,
+        "guidance_scale_2": guidance_scale_2,
+        "seed": seed,
+        "fast": fast,
+        "resolution": resolution,
+    }
+
+    try:
+        response = requests.post(
+            video_endpoint,
+            headers=headers,
+            json=body
+        )
+        response.raise_for_status()
+        video_data = response.content
+
+        if not os.path.exists("instance_data"):
+            os.makedirs("instance_data")
+
+        filename = f"instance_data/{uuid.uuid4()}.mp4"
+        
+        with open(filename, "wb") as f:
+            f.write(video_data)
+        
+        return f"Video saved to {filename}"
+
+    except requests.exceptions.RequestException as e:
+        return f"Error calling Chutes Fast Image-to-Video API: {e}"
+    except Exception as e:
+        return f"An unexpected error occurred: {e}"

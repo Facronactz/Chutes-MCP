@@ -1,0 +1,10 @@
+{
+  "$schema": "https://gofastmcp.com/public/schemas/fastmcp.json/latest.json",
+  "entrypoint": "src.app:mcp",
+  "transport": {
+    "type": "http",
+    "host": "127.0.0.1",
+    "port": 8000
+  },
+  "python_version": "3.12"
+}

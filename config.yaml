@@ -9,3 +9,4 @@ chutes:
     text_to_video: https://chutes-wan2-1-14b.chutes.ai/text2video
     image_to_video: https://chutes-wan2-1-14b.chutes.ai/image2video
     image_edit: https://chutes-qwen-image-edit-2509.chutes.ai/generate
+    image_to_video_fast: https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate
