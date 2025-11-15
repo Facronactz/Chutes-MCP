@@ -3,7 +3,7 @@ import aiohttp
 import requests
 import uuid
 from typing import Optional, List
-from src.app import mcp
+from src.mcp_instance import mcp
 from src.config import config
 
 @mcp.tool(
