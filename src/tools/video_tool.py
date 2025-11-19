@@ -1,13 +1,15 @@
 import os
 import requests
 import uuid
-from typing import Optional
+from typing import Optional, Union
 from src.mcp_instance import mcp
 from src.config import config
+from fastmcp.utilities.types import File
+from src.utils.imagekit_uploader import upload_to_imagekit
 
 @mcp.tool(
     name="generate_video_from_text",
-    description="Generates a video based on a text prompt and saves it to a file."
+    description="Generates a video from a text prompt. By default, uploads the video to ImageKit as a side effect."
 )
 def generate_video_from_text(
     prompt: str,
@@ -18,7 +20,8 @@ def generate_video_from_text(
     steps: int = 25,
     guidance_scale: float = 5.0,
     seed: Optional[int] = 42,
-) -> str:
+    save_to_file: bool = True,
+) -> Union[File, str]:
     """
     Generates a video using the Chutes text-to-video generation API.
 
@@ -30,7 +33,8 @@ def generate_video_from_text(
     :param steps: The number of denoising steps.
     :param guidance_scale: A parameter to control how much the model should follow the prompt.
     :param seed: A seed for reproducible generation.
-    :return: The path to the saved video, or an error message.
+    :param save_to_file: If True, uploads the video to ImageKit as a side effect.
+    :return: A File object on success, or an error message string.
     """
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -65,15 +69,21 @@ def generate_video_from_text(
         response.raise_for_status()
         video_data = response.content
 
-        if not os.path.exists("instance_data"):
-            os.makedirs("instance_data")
-
-        filename = f"instance_data/{uuid.uuid4()}.mp4"
+        url = None
+        if save_to_file:
+            metadata = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "resolution": resolution,
+                "fps": fps,
+                "frames": frames,
+                "steps": steps,
+                "guidance_scale": guidance_scale,
+                "seed": seed,
+            }
+            url = upload_to_imagekit(video_data, "generated_video_from_text", metadata)
         
-        with open(filename, "wb") as f:
-            f.write(video_data)
-        
-        return f"Video saved to {filename}"
+        return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
         return f"Error calling Chutes Text-to-Video API: {e}"
@@ -82,7 +92,7 @@ def generate_video_from_text(
 
 @mcp.tool(
     name="generate_video_from_image",
-    description="Generates a video based on an image and a text prompt, and saves it to a file."
+    description="Generates a video from an image and prompt. By default, uploads the video to ImageKit as a side effect."
 )
 def generate_video_from_image(
     prompt: str,
@@ -91,7 +101,8 @@ def generate_video_from_image(
     steps: int = 25,
     guidance_scale: float = 5.0,
     seed: Optional[int] = 42,
-) -> str:
+    save_to_file: bool = True,
+) -> Union[File, str]:
     """
     Generates a video using the Chutes image-to-video generation API.
 
@@ -101,7 +112,8 @@ def generate_video_from_image(
     :param steps: The number of denoising steps.
     :param guidance_scale: A parameter to control how much the model should follow the prompt.
     :param seed: A seed for reproducible generation.
-    :return: The path to the saved video, or an error message.
+    :param save_to_file: If True, uploads the video to ImageKit as a side effect.
+    :return: A File object on success, or an error message string.
     """
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -134,24 +146,26 @@ def generate_video_from_image(
         response.raise_for_status()
         video_data = response.content
 
-        if not os.path.exists("instance_data"):
-            os.makedirs("instance_data")
-
-        filename = f"instance_data/{uuid.uuid4()}.mp4"
+        url = None
+        if save_to_file:
+            metadata = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "steps": steps,
+                "guidance_scale": guidance_scale,
+                "seed": seed,
+            }
+            url = upload_to_imagekit(video_data, "generated_video_from_image", metadata)
         
-        with open(filename, "wb") as f:
-            f.write(video_data)
-        
-        return f"Video saved to {filename}"
+        return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
         return f"Error calling Chutes Image-to-Video API: {e}"
     except Exception as e:
         return f"An unexpected error occurred: {e}"
-
 @mcp.tool(
     name="generate_video_from_image_fast",
-    description="Generates a video from an image using a fast model."
+    description="Generates a video from an image using a fast model. By default, uploads the video to ImageKit as a side effect."
 )
 def generate_video_from_image_fast(
     prompt: str,
@@ -164,7 +178,8 @@ def generate_video_from_image_fast(
     seed: Optional[int] = None,
     fast: bool = True,
     resolution: str = "480p",
-) -> str:
+    save_to_file: bool = True,
+) -> Union[File, str]:
     """
     Generates a video from an image using the fast Chutes image-to-video API.
 
@@ -178,7 +193,8 @@ def generate_video_from_image_fast(
     :param seed: A seed for reproducible generation.
     :param fast: Enables ultra fast pruna mode.
     :param resolution: The resolution of the video.
-    :return: The path to the saved video, or an error message.
+    :param save_to_file: If True, uploads the video to ImageKit as a side effect.
+    :return: A File object on success, or an error message string.
     """
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -215,15 +231,22 @@ def generate_video_from_image_fast(
         response.raise_for_status()
         video_data = response.content
 
-        if not os.path.exists("instance_data"):
-            os.makedirs("instance_data")
-
-        filename = f"instance_data/{uuid.uuid4()}.mp4"
+        url = None
+        if save_to_file:
+            metadata = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "fps": fps,
+                "frames": frames,
+                "guidance_scale": guidance_scale,
+                "guidance_scale_2": guidance_scale_2,
+                "seed": seed,
+                "fast": fast,
+                "resolution": resolution,
+            }
+            url = upload_to_imagekit(video_data, "generated_video_from_image_fast", metadata)
         
-        with open(filename, "wb") as f:
-            f.write(video_data)
-        
-        return f"Video saved to {filename}"
+        return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
         return f"Error calling Chutes Fast Image-to-Video API: {e}"

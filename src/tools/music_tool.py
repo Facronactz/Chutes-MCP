@@ -1,26 +1,30 @@
 import os
 import requests
 import uuid
-from typing import Optional
+from typing import Optional, Union
 from src.mcp_instance import mcp
 from src.config import config
+from fastmcp.utilities.types import Audio
+from src.utils.imagekit_uploader import upload_to_imagekit
 
 @mcp.tool(
     name="generate_music",
-    description="Generates a music file based on a style prompt, lyrics, or an input audio file."
+    description="Generates a music file. By default, it uploads the file to ImageKit as a side effect."
 )
 def generate_music(
     style_prompt: Optional[str] = None,
     lyrics: Optional[str] = None,
     audio_b64: Optional[str] = None,
-) -> str:
+    save_to_file: bool = True,
+) -> Union[Audio, str]:
     """
     Generates music using the Chutes music generation API.
 
     :param style_prompt: A description of the desired music style.
     :param lyrics: The lyrics for the song.
     :param audio_b64: A base64 encoded audio file to be used as input.
-    :return: The path to the saved audio file, or an error message.
+    :param save_to_file: If True, uploads the audio to ImageKit as a side effect.
+    :return: An Audio object on success, or an error message string.
     """
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -50,18 +54,15 @@ def generate_music(
         response.raise_for_status()
         audio_data = response.content
 
-        # Ensure the instance_data directory exists
-        if not os.path.exists("instance_data"):
-            os.makedirs("instance_data")
-
-        # Generate a unique filename
-        filename = f"instance_data/{uuid.uuid4()}.wav"
+        url = None
+        if save_to_file:
+            metadata = {
+                "style_prompt": style_prompt,
+                "lyrics": lyrics,
+            }
+            url = upload_to_imagekit(audio_data, "generated_music", metadata)
         
-        # Save the audio
-        with open(filename, "wb") as f:
-            f.write(audio_data)
-        
-        return f"Music saved to {filename}"
+        return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
         return f"Error calling Chutes Music API: {e}"
