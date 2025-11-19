@@ -1,5 +1,6 @@
 import sys
 import os
+from dotenv import load_dotenv
 
 # Add the project root to the Python path to allow absolute imports from 'src'.
 # This is necessary because fastmcp dev runs this file as a top-level script
@@ -10,6 +11,8 @@ if project_root not in sys.path:
 
 # Import the central mcp object
 from src.mcp_instance import mcp
+
+load_dotenv()
 
 # Import main to load the tools, which will decorate the mcp object
 from src.tools import llm_tool
