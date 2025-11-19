@@ -68,20 +68,20 @@ async def generate_image(
             ) as response:
                 response.raise_for_status()
                 image_data = await response.read()
-                
-                url = None
-                if save_to_file:
-                    metadata = {
-                        "prompt": prompt,
-                        "negative_prompt": negative_prompt,
-                        "width": width,
-                        "height": height,
-                        "num_inference_steps": num_inference_steps,
-                        "seed": seed,
-                    }
-                    url = upload_to_imagekit(image_data, "generated_image", metadata)
-                
-                return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
+
+        url = None
+        if save_to_file:
+            metadata = {
+                "prompt": prompt,
+                "negative_prompt": negative_prompt,
+                "width": width,
+                "height": height,
+                "num_inference_steps": num_inference_steps,
+                "seed": seed,
+            }
+            url = upload_to_imagekit(image_data, "generated_image", metadata, "jpeg")
+        
+        return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 
     except aiohttp.ClientError as e:
         return f"Error calling Chutes Image API: {e}"
@@ -161,7 +161,7 @@ def edit_image(
                 "seed": seed,
                 "true_cfg_scale": true_cfg_scale,
             }
-            url = upload_to_imagekit(image_data, "edited_image", metadata)
+            url = upload_to_imagekit(image_data, "edited_image", metadata, "jpeg")
         
         return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 

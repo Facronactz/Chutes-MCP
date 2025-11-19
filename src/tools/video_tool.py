@@ -81,7 +81,7 @@ def generate_video_from_text(
                 "guidance_scale": guidance_scale,
                 "seed": seed,
             }
-            url = upload_to_imagekit(video_data, "generated_video_from_text", metadata)
+            url = upload_to_imagekit(video_data, "generated_video_from_text", metadata, "mp4")
         
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
@@ -155,7 +155,7 @@ def generate_video_from_image(
                 "guidance_scale": guidance_scale,
                 "seed": seed,
             }
-            url = upload_to_imagekit(video_data, "generated_video_from_image", metadata)
+            url = upload_to_imagekit(video_data, "generated_video_from_image", metadata, "mp4")
         
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
@@ -244,7 +244,7 @@ def generate_video_from_image_fast(
                 "fast": fast,
                 "resolution": resolution,
             }
-            url = upload_to_imagekit(video_data, "generated_video_from_image_fast", metadata)
+            url = upload_to_imagekit(video_data, "generated_video_from_image_fast", metadata, "mp4")
         
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 

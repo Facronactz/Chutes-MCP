@@ -60,7 +60,7 @@ def generate_music(
                 "style_prompt": style_prompt,
                 "lyrics": lyrics,
             }
-            url = upload_to_imagekit(audio_data, "generated_music", metadata)
+            url = upload_to_imagekit(audio_data, "generated_music", metadata, "wav")
         
         return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 
