@@ -1,5 +1,6 @@
 import os
 import aiohttp
+from loguru import logger
 import requests
 import uuid
 from typing import Optional, List, Union
@@ -33,12 +34,17 @@ async def generate_image(
     :param save_to_file: If True, uploads the image to ImageKit as a side effect.
     :return: An Image object on success, or an error message string.
     """
+    logger.info("Entering generate_image function.")
+    logger.debug(f"Generate Image Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, save_to_file={save_to_file}")
+
     api_token = config.get("chutes.api_token")
     if not api_token:
+        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_image.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
     image_endpoint = config.get("chutes.endpoints.image")
     if not image_endpoint:
+        logger.warning("Image endpoint not configured in config.yaml for generate_image.")
         return "Error: Image endpoint not configured in config.yaml."
 
     headers = {
@@ -60,6 +66,7 @@ async def generate_image(
     }
 
     try:
+        logger.info(f"Calling Chutes Image API at {image_endpoint} for image generation.")
         async with aiohttp.ClientSession() as session:
             async with session.post(
                 image_endpoint,
@@ -68,9 +75,11 @@ async def generate_image(
             ) as response:
                 response.raise_for_status()
                 image_data = await response.read()
+        logger.info("Successfully received image data from Chutes Image API.")
 
         url = None
         if save_to_file:
+            logger.debug("Uploading generated image to ImageKit.")
             metadata = {
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
@@ -80,12 +89,19 @@ async def generate_image(
                 "seed": seed,
             }
             url = upload_to_imagekit(image_data, "generated_image", metadata, "jpeg")
+            if url:
+                logger.info(f"Generated image uploaded to ImageKit: {url}")
+            else:
+                logger.error("Failed to upload generated image to ImageKit.")
         
+        logger.info("Exiting generate_image function with successful response.")
         return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 
     except aiohttp.ClientError as e:
+        logger.error(f"AIOHTTP ClientError calling Chutes Image API in generate_image: {e}")
         return f"Error calling Chutes Image API: {e}"
     except Exception as e:
+        logger.error(f"An unexpected error occurred in generate_image: {e}", exc_info=True)
         return f"An unexpected error occurred: {e}"
 
 @mcp.tool(
@@ -117,12 +133,17 @@ def edit_image(
     :param save_to_file: If True, uploads the image to ImageKit as a side effect.
     :return: An Image object on success, or an error message string.
     """
+    logger.info("Entering edit_image function.")
+    logger.debug(f"Edit Image Parameters: prompt='{prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, true_cfg_scale={true_cfg_scale}, save_to_file={save_to_file}")
+
     api_token = config.get("chutes.api_token")
     if not api_token:
+        logger.warning("CHUTES_API_TOKEN environment variable not set for edit_image.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
     image_edit_endpoint = config.get("chutes.endpoints.image_edit")
     if not image_edit_endpoint:
+        logger.warning("Image edit endpoint not configured in config.yaml for edit_image.")
         return "Error: Image edit endpoint not configured in config.yaml."
 
     headers = {
@@ -142,6 +163,7 @@ def edit_image(
     }
 
     try:
+        logger.info(f"Calling Chutes Image Edit API at {image_edit_endpoint} for image editing.")
         response = requests.post(
             image_edit_endpoint,
             headers=headers,
@@ -149,9 +171,11 @@ def edit_image(
         )
         response.raise_for_status()
         image_data = response.content
+        logger.info("Successfully received edited image data from Chutes Image Edit API.")
 
         url = None
         if save_to_file:
+            logger.debug("Uploading edited image to ImageKit.")
             metadata = {
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
@@ -162,10 +186,17 @@ def edit_image(
                 "true_cfg_scale": true_cfg_scale,
             }
             url = upload_to_imagekit(image_data, "edited_image", metadata, "jpeg")
+            if url:
+                logger.info(f"Edited image uploaded to ImageKit: {url}")
+            else:
+                logger.error("Failed to upload edited image to ImageKit.")
         
+        logger.info("Exiting edit_image function with successful response.")
         return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
+        logger.error(f"Error calling Chutes Image Edit API in edit_image: {e}")
         return f"Error calling Chutes Image Edit API: {e}"
     except Exception as e:
+        logger.error(f"An unexpected error occurred in edit_image: {e}", exc_info=True)
         return f"An unexpected error occurred: {e}"

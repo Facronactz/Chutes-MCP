@@ -15,3 +15,6 @@ imagekit:
   public_key: ${IMAGEKIT_PUBLIC_KEY}
   private_key: ${IMAGEKIT_PRIVATE_KEY}
   url_endpoint: ${IMGAEKIT_URL_ENDPOINT}
+
+logging:
+  level: DEBUG

@@ -5,6 +5,7 @@ import uuid
 import json
 import tempfile
 import os
+from loguru import logger # Import loguru logger
 
 def get_imagekit_instance():
     public_key = config.get('imagekit.public_key')
@@ -15,6 +16,7 @@ def get_imagekit_instance():
        public_key == "your_public_key" or \
        private_key == "your_private_key" or \
        url_endpoint == "your_url_endpoint":
+        logger.warning("ImageKit is not fully configured (public_key, private_key, or url_endpoint missing/default). Skipping ImageKit instance creation.")
         return None
 
     return ImageKit(
@@ -26,7 +28,7 @@ def get_imagekit_instance():
 def upload_to_imagekit(file_data, file_name_prefix, metadata, file_extension):
     imagekit = get_imagekit_instance()
     if not imagekit:
-        print("ImageKit is not configured. Skipping upload.")
+        logger.warning("ImageKit instance not available. Skipping upload.")
         return None
 
     # Serialize the entire metadata dictionary to a JSON string
@@ -46,6 +48,7 @@ def upload_to_imagekit(file_data, file_name_prefix, metadata, file_extension):
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             temp_file.write(file_data)
             temp_file_path = temp_file.name
+            logger.debug(f"Temporary file created for upload: {temp_file_path}")
         
         with open(temp_file_path, "rb") as f:
             upload_result = imagekit.upload(
@@ -59,11 +62,13 @@ def upload_to_imagekit(file_data, file_name_prefix, metadata, file_extension):
                     extensions=extensions,
                 ),
             )
+        logger.info(f"File uploaded successfully to ImageKit: {upload_result.url}")
         return upload_result.url
     except Exception as e:
-        print(f"Error uploading to ImageKit. Full exception: {e!r}")
+        logger.error(f"Error uploading to ImageKit: {e}", exc_info=True)
         return None
     finally:
         # Clean up the temporary file
         if temp_file_path and os.path.exists(temp_file_path):
             os.remove(temp_file_path)
+            logger.debug(f"Temporary file removed: {temp_file_path}")

@@ -1,4 +1,5 @@
 import os
+from loguru import logger
 import requests
 import uuid
 from typing import Optional, Union
@@ -26,12 +27,17 @@ def generate_music(
     :param save_to_file: If True, uploads the audio to ImageKit as a side effect.
     :return: An Audio object on success, or an error message string.
     """
+    logger.info("Entering generate_music function.")
+    logger.debug(f"Generate Music Parameters: style_prompt='{style_prompt}', lyrics='{lyrics}', audio_b64={'<present>' if audio_b64 else '<absent>'}, save_to_file={save_to_file}")
+
     api_token = config.get("chutes.api_token")
     if not api_token:
+        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_music.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
     music_endpoint = config.get("chutes.endpoints.music")
     if not music_endpoint:
+        logger.warning("Music endpoint not configured in config.yaml for generate_music.")
         return "Error: Music endpoint not configured in config.yaml."
 
     headers = {
@@ -46,6 +52,7 @@ def generate_music(
     }
 
     try:
+        logger.info(f"Calling Chutes Music API at {music_endpoint} for music generation.")
         response = requests.post(
             music_endpoint,
             headers=headers,
@@ -53,18 +60,27 @@ def generate_music(
         )
         response.raise_for_status()
         audio_data = response.content
+        logger.info("Successfully received audio data from Chutes Music API.")
 
         url = None
         if save_to_file:
+            logger.debug("Uploading generated music to ImageKit.")
             metadata = {
                 "style_prompt": style_prompt,
                 "lyrics": lyrics,
             }
             url = upload_to_imagekit(audio_data, "generated_music", metadata, "wav")
+            if url:
+                logger.info(f"Generated music uploaded to ImageKit: {url}")
+            else:
+                logger.error("Failed to upload generated music to ImageKit.")
         
+        logger.info("Exiting generate_music function with successful response.")
         return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 
     except requests.exceptions.RequestException as e:
+        logger.error(f"Error calling Chutes Music API in generate_music: {e}")
         return f"Error calling Chutes Music API: {e}"
     except Exception as e:
+        logger.error(f"An unexpected error occurred in generate_music: {e}", exc_info=True)
         return f"An unexpected error occurred: {e}"
