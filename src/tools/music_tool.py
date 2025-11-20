@@ -3,6 +3,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, Union
+from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import Audio
@@ -33,12 +34,12 @@ def generate_music(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_music.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     music_endpoint = config.get("chutes.endpoints.text_to_music")
     if not music_endpoint:
         logger.warning("Text-to-music endpoint not configured in config.yaml for generate_music.")
-        return "Error: Text-to-music endpoint not configured in config.yaml."
+        raise ToolError("Text-to-music endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -81,7 +82,7 @@ def generate_music(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes Music API in generate_music: {e}")
-        return f"Error calling Chutes Music API: {e}"
+        raise ToolError(f"Error calling Chutes Music API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_music: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")

@@ -4,6 +4,7 @@ import json
 from loguru import logger
 import requests
 from typing import List, Dict
+from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 
@@ -32,12 +33,12 @@ async def stream_chat(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for stream_chat.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     llm_endpoint = config.get("chutes.endpoints.llm")
     if not llm_endpoint:
         logger.warning("LLM endpoint not configured in config.yaml for stream_chat.")
-        return "Error: LLM endpoint not configured in config.yaml."
+        raise ToolError("LLM endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -80,10 +81,10 @@ async def stream_chat(
                             logger.error(f"Error processing stream chunk: {e} - Data: {data}")
     except aiohttp.ClientError as e:
         logger.error(f"AIOHTTP ClientError in stream_chat: {e}")
-        return f"Error connecting to Chutes API: {e}"
+        raise ToolError(f"Error connecting to Chutes API: {e}")
     except Exception as e:
         logger.error(f"Unexpected error in stream_chat: {e}")
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")
     
     logger.info("Exiting stream_chat function with successful response.")
     return full_response
@@ -113,12 +114,12 @@ def chat(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for chat.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     llm_endpoint = config.get("chutes.endpoints.llm")
     if not llm_endpoint:
         logger.warning("LLM endpoint not configured in config.yaml for chat.")
-        return "Error: LLM endpoint not configured in config.yaml."
+        raise ToolError("LLM endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -146,10 +147,10 @@ def chat(
         return response_data["choices"][0]["message"]["content"]
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes API in chat function: {e}")
-        return f"Error calling Chutes API: {e}"
+        raise ToolError(f"Error calling Chutes API: {e}")
     except (KeyError, IndexError) as e:
         logger.error(f"Error parsing response from Chutes API in chat function: {e} - Response: {response.text if 'response' in locals() else 'N/A'}")
-        return f"Error parsing response from Chutes API: {e}"
+        raise ToolError(f"Error parsing response from Chutes API: {e} - Response: {response.text if 'response' in locals() else 'N/A'}")
     except Exception as e:
         logger.error(f"Unexpected error in chat function: {e}")
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")

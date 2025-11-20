@@ -2,6 +2,7 @@ import aiohttp
 from loguru import logger
 from src.mcp_instance import mcp
 from src.config import config
+from fastmcp.exceptions import ToolError
 
 @mcp.tool(
     name="check_mcp_status",
@@ -19,7 +20,7 @@ async def check_mcp_status() -> str:
         status_messages.append("MCP server instance is initialized and running.")
     else:
         status_messages.append("ERROR: MCP server instance is not initialized.")
-        return "\n".join(status_messages)
+        raise ToolError("MCP server instance is not initialized.")
 
     # Check external endpoint connections
     endpoints_to_check = {

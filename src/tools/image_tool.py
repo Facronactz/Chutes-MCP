@@ -4,6 +4,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, List, Union
+from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import Image
@@ -18,7 +19,7 @@ async def generate_image(
     negative_prompt: Optional[str] = None,
     width: int = 1024,
     height: int = 1024,
-    num_inference_steps: int = 50,
+    num_inference_steps: int = 25,
     seed: Optional[int] = None,
     save_to_file: bool = True,
 ) -> Union[Image, str]:
@@ -37,15 +38,19 @@ async def generate_image(
     logger.info("Entering generate_image function.")
     logger.debug(f"Generate Image Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, save_to_file={save_to_file}")
 
+    if num_inference_steps > 60:
+        logger.error(f"num_inference_steps (got {num_inference_steps}) cannot exceed 60.")
+        raise ToolError("num_inference_steps cannot exceed 60.")
+
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_image.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     image_endpoint = config.get("chutes.endpoints.text_to_image")
     if not image_endpoint:
         logger.warning("Text-to-image endpoint not configured in config.yaml for generate_image.")
-        return "Error: Text-to-image endpoint not configured in config.yaml."
+        raise ToolError("Text-to-image endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -100,10 +105,10 @@ async def generate_image(
 
     except aiohttp.ClientError as e:
         logger.error(f"AIOHTTP ClientError calling Chutes Image API in generate_image: {e}")
-        return f"Error calling Chutes Image API: {e}"
+        raise ToolError(f"Error calling Chutes Image API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_image: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")
 
 @mcp.tool(
     name="edit_image",
@@ -115,7 +120,7 @@ def edit_image(
     negative_prompt: Optional[str] = "",
     width: int = 1024,
     height: int = 1024,
-    num_inference_steps: int = 40,
+    num_inference_steps: int = 30,
     seed: Optional[int] = None,
     true_cfg_scale: float = 4.0,
     save_to_file: bool = True,
@@ -140,12 +145,12 @@ def edit_image(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for edit_image.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     image_edit_endpoint = config.get("chutes.endpoints.image_to_image")
     if not image_edit_endpoint:
         logger.warning("Image-to-image endpoint not configured in config.yaml for edit_image.")
-        return "Error: Image-to-image endpoint not configured in config.yaml."
+        raise ToolError("Image-to-image endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -198,7 +203,7 @@ def edit_image(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes Image Edit API in edit_image: {e}")
-        return f"Error calling Chutes Image Edit API: {e}"
+        raise ToolError(f"Error calling Chutes Image Edit API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in edit_image: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")

@@ -3,6 +3,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, Union
+from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import File
@@ -43,12 +44,12 @@ def generate_video_from_text(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_text.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.text_to_video")
     if not video_endpoint:
         logger.warning("Text-to-video endpoint not configured in config.yaml for generate_video_from_text.")
-        return "Error: Text-to-video endpoint not configured in config.yaml."
+        raise ToolError("Text-to-video endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -102,10 +103,10 @@ def generate_video_from_text(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes Text-to-Video API in generate_video_from_text: {e}")
-        return f"Error calling Chutes Text-to-Video API: {e}"
+        raise ToolError(f"Error calling Chutes Text-to-Video API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_video_from_text: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")
 
 @mcp.tool(
     name="generate_video_from_image",
@@ -138,12 +139,12 @@ def generate_video_from_image(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.image_to_video")
     if not video_endpoint:
         logger.warning("Image-to-video endpoint not configured in config.yaml for generate_video_from_image.")
-        return "Error: Image-to-video endpoint not configured in config.yaml."
+        raise ToolError("Image-to-video endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -192,10 +193,10 @@ def generate_video_from_image(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes Image-to-Video API in generate_video_from_image: {e}")
-        return f"Error calling Chutes Image-to-Video API: {e}"
+        raise ToolError(f"Error calling Chutes Image-to-Video API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_video_from_image: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")
 @mcp.tool(
     name="generate_video_from_image_fast",
     description="Generates a video from an image using a fast model. By default, uploads the video to ImageKit as a side effect."
@@ -235,12 +236,12 @@ def generate_video_from_image_fast(
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image_fast.")
-        return "Error: CHUTES_API_TOKEN environment variable not set."
+        raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.image_to_video_fast")
     if not video_endpoint:
         logger.warning("Fast image-to-video endpoint not configured in config.yaml for generate_video_from_image_fast.")
-        return "Error: Fast image-to-video endpoint not configured in config.yaml."
+        raise ToolError("Fast image-to-video endpoint not configured in config.yaml.")
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -297,7 +298,7 @@ def generate_video_from_image_fast(
 
     except requests.exceptions.RequestException as e:
         logger.error(f"Error calling Chutes Fast Image-to-Video API in generate_video_from_image_fast: {e}")
-        return f"Error calling Chutes Fast Image-to-Video API: {e}"
+        raise ToolError(f"Error calling Chutes Fast Image-to-Video API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_video_from_image_fast: {e}", exc_info=True)
-        return f"An unexpected error occurred: {e}"
+        raise ToolError(f"An unexpected error occurred: {e}")
