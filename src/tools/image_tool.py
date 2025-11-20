@@ -222,3 +222,37 @@ def edit_image(
     except Exception as e:
         logger.error(f"An unexpected error occurred in edit_image: {e}", exc_info=True)
         raise ToolError(f"An unexpected error occurred: {e}")
+
+@mcp.tool(
+    name="describe_image",
+    description="Analyzes an image and provides a detailed description using a multimodal LLM."
+)
+async def describe_image(
+    image_b64s: List[str],
+    prompt: str = "Describe this image in detail and identify any key objects or themes.",
+    
+) -> str:
+    """
+    Describes an image using the Chutes Multimodal LLM.
+
+    :param image_b64s: A list of base64 encoded images to be described.
+    :param prompt: The prompt to send to the LLM for image description.
+    :return: A string containing the LLM's description of the image.
+    """
+    logger.info("Entering describe_image function.")
+    logger.debug(f"Describe Image Parameters: prompt='{prompt}', number of images={len(image_b64s)}")
+
+    if not image_b64s:
+        raise ToolError("No images provided for description.")
+
+    try:
+        logger.info("Calling Multimodal LLM for image description.")
+        llm_description = await mcp.multimodal_llm.ask_with_images(
+            prompt=prompt,
+            images=image_b64s
+        )
+        logger.info("Multimodal LLM image description complete.")
+        return llm_description
+    except Exception as e:
+        logger.error(f"An unexpected error occurred in describe_image: {e}", exc_info=True)
+        raise ToolError(f"An unexpected error occurred: {e}")
