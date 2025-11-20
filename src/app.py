@@ -30,6 +30,8 @@ from src.tools import music_tool
 logger.debug("Music tool module imported.")
 from src.tools import video_tool
 logger.debug("Video tool module imported.")
+from src.tools import system_check_tool
+logger.debug("System Check tool module imported.")
 logger.info("All tool modules imported.")
 
 # The mcp object is now decorated with tools and ready to be used.
