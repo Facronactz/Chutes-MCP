@@ -18,3 +18,4 @@ imagekit:
 
 logging:
   level: DEBUG
+  file_enabled: false

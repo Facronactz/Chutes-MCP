@@ -71,6 +71,7 @@ class Config:
         
         # Get log level from config, default to INFO
         configured_log_level = self.get("logging.level", "INFO").upper()
+        file_logging_enabled = self.get("logging.file_enabled", False)
         
         # Map configured_log_level to a Loguru level
         if configured_log_level == "NONE":
@@ -94,24 +95,30 @@ class Config:
         logging.getLogger("uvicorn.access").handlers = [InterceptHandler()]
         logging.captureWarnings(True)
 
-        # Add file handler for general logs
-        logger.add(
-            os.path.join(log_dir, 'mcp.log'),
-            rotation='500 MB',
-            retention='10 days',
-            level=effective_log_level,
-            format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
-            enqueue=True # Asynchronous logging
-        )
-        # Add file handler for error logs (always ERROR level)
-        logger.add(
-            "logs/error.log",
-            level="ERROR",
-            rotation="1 week",
-            retention="1 month",
-            enqueue=True
-        )
-        # Add stderr handler for console output
+        # Add file handlers only if enabled in config
+        if file_logging_enabled:
+            logger.info("File logging is enabled. Adding file handlers.")
+            # Add file handler for general logs
+            logger.add(
+                os.path.join(log_dir, 'mcp.log'),
+                rotation='500 MB',
+                retention='10 days',
+                level=effective_log_level,
+                format="{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+                enqueue=True # Asynchronous logging
+            )
+            # Add file handler for error logs (always ERROR level)
+            logger.add(
+                "logs/error.log",
+                level="ERROR",
+                rotation="1 week",
+                retention="1 month",
+                enqueue=True
+            )
+        else:
+            logger.info("File logging is disabled. Skipping file handlers.")
+
+        # Add stderr handler for console output (always enabled)
         logger.add(
             os.sys.stderr,
             level=effective_log_level,
