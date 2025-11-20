@@ -66,7 +66,7 @@ def generate_music(
         if save_to_file:
             logger.debug("Uploading generated music to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.text_to_music"),
+                "model": config.get("metadata.models.text_to_music"),
                 "style_prompt": style_prompt,
                 "lyrics": lyrics,
             }

@@ -81,7 +81,7 @@ def generate_video_from_text(
         if save_to_file:
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.text_to_video"),
+                "model": config.get("metadata.models.text_to_video"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "resolution": resolution,
@@ -174,7 +174,7 @@ def generate_video_from_image(
         if save_to_file:
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.image_to_video"),
+                "model": config.get("metadata.models.image_to_video"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "steps": steps,
@@ -275,7 +275,7 @@ def generate_video_from_image_fast(
         if save_to_file:
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.image_to_video_fast"),
+                "model": config.get("metadata.models.image_to_video_fast"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "fps": fps,

@@ -81,7 +81,7 @@ async def generate_image(
         if save_to_file:
             logger.debug("Uploading generated image to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.text_to_image"),
+                "model": config.get("metadata.models.text_to_image"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "width": width,
@@ -178,7 +178,7 @@ def edit_image(
         if save_to_file:
             logger.debug("Uploading edited image to ImageKit.")
             metadata = {
-                "model": config.get("chutes.models.image_to_image"),
+                "model": config.get("metadata.models.image_to_image"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "width": width,
