@@ -3,20 +3,26 @@ import aiohttp
 import json
 from loguru import logger
 import requests
-from typing import List, Dict
+from typing import List, Dict, Annotated # Added Annotated here
+from pydantic import Field # Added Field here
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 
 @mcp.tool(
     name="chutes_chat_stream",
-    description="Sends a prompt to a Chutes LLM and gets a streaming response. Use this for real-time applications."
+    description="Sends a prompt to a Chutes LLM and gets a streaming response. Use this for real-time applications.",
+    annotations={
+        "title": "Chutes Chat Stream",
+        "readOnlyHint": True,  # It reads from LLM, doesn't modify environment
+        "openWorldHint": True   # It interacts with an external LLM API
+    }
 )
 async def stream_chat(
-    messages: List[Dict[str, str]],
-    model = config.get("chutes.models.llm"),
-    temperature: float = 0.7,
-    max_tokens: int = 1024,
+    messages: Annotated[List[Dict[str, str]], Field(description="A list of message objects, each with a 'role' (e.g., 'user', 'assistant') and 'content' string. Represents the conversation history.")],
+    model: Annotated[str, Field(description="The model to use for the completion.")] = config.get("chutes.models.llm"),
+    temperature: Annotated[float, Field(description="The sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.", ge=0.0, le=2.0)] = 0.7,
+    max_tokens: Annotated[int, Field(description="The maximum number of tokens to generate in the chat completion. The token count of your prompt plus max_tokens cannot exceed the model's context length.", ge=1)] = 1024,
 ) -> str:
     """
     Sends a chat message to the Chutes LLM endpoint and streams the response.
@@ -91,13 +97,18 @@ async def stream_chat(
 
 @mcp.tool(
     name="chutes_chat",
-    description="Sends a prompt to a Chutes LLM and gets a single response. Use this for non-streaming applications."
+    description="Sends a prompt to a Chutes LLM and gets a single response. Use this for non-streaming applications.",
+    annotations={
+        "title": "Chutes Chat",
+        "readOnlyHint": True,  # It reads from LLM, doesn't modify environment
+        "openWorldHint": True   # It interacts with an external LLM API
+    }
 )
-def chat(
-    messages: List[Dict[str, str]],
-    model = config.get("chutes.models.llm"),
-    temperature: float = 0.7,
-    max_tokens: int = 1024,
+async def chat( # Changed to async def
+    messages: Annotated[List[Dict[str, str]], Field(description="A list of message objects, each with a 'role' (e.g., 'user', 'assistant') and 'content' string. Represents the conversation history.")],
+    model: Annotated[str, Field(description="The model to use for the completion.")] = config.get("chutes.models.llm"),
+    temperature: Annotated[float, Field(description="The sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.", ge=0.0, le=2.0)] = 0.7,
+    max_tokens: Annotated[int, Field(description="The maximum number of tokens to generate in the chat completion. The token count of your prompt plus max_tokens cannot exceed the model's context length.", ge=1)] = 1024,
 ) -> str:
     """
     Sends a chat message to the Chutes LLM endpoint and gets a single response.
@@ -135,22 +146,23 @@ def chat(
     }
 
     try:
-        response = requests.post(
-            llm_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        response_data = response.json()
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                llm_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                response_data = await response.json() # Changed to await response.json()
         logger.info("Chat function successfully received response.")
         logger.debug(f"Chat response data: {response_data}")
         return response_data["choices"][0]["message"]["content"]
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes API in chat function: {e}")
-        raise ToolError(f"Error calling Chutes API: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        logger.error(f"AIOHTTP ClientError in chat function: {e}")
+        raise ToolError(f"Error connecting to Chutes API: {e}")
     except (KeyError, IndexError) as e:
-        logger.error(f"Error parsing response from Chutes API in chat function: {e} - Response: {response.text if 'response' in locals() else 'N/A'}")
-        raise ToolError(f"Error parsing response from Chutes API: {e} - Response: {response.text if 'response' in locals() else 'N/A'}")
+        logger.error(f"Error parsing response from Chutes API in chat function: {e} - Response: {response_data if 'response_data' in locals() else 'N/A'}")
+        raise ToolError(f"Error parsing response from Chutes API: {e} - Response: {response_data if 'response_data' in locals() else 'N/A'}")
     except Exception as e:
         logger.error(f"Unexpected error in chat function: {e}")
         raise ToolError(f"An unexpected error occurred: {e}")

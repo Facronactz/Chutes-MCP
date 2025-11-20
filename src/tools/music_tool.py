@@ -1,23 +1,30 @@
 import os
+import aiohttp
 from loguru import logger
 import requests
 import uuid
-from typing import Optional, Union
+from typing import Optional, Union, Annotated
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import Audio
 from src.utils.imagekit_uploader import upload_to_imagekit
+from pydantic import Field
 
 @mcp.tool(
     name="generate_music",
-    description="Generates a music file. By default, it uploads the file to ImageKit as a side effect."
+    description="Generates a music file. By default, it uploads the file to ImageKit as a side effect.",
+    annotations={
+        "title": "Generate Music",
+        "readOnlyHint": False,  # Because it uploads the file
+        "openWorldHint": True   # Because it calls an external API
+    }
 )
-def generate_music(
-    style_prompt: Optional[str] = None,
-    lyrics: Optional[str] = None,
-    audio_b64: Optional[str] = None,
-    save_to_file: bool = True,
+async def generate_music( # Changed to async def
+    style_prompt: Annotated[Optional[str], Field(description="A description of the desired music style, e.g., 'lo-fi beat', 'classical piano', 'rock anthem'.")] = None,
+    lyrics: Annotated[Optional[str], Field(description="The lyrics for the song. If provided, the music will be generated to match these lyrics.")] = None,
+    audio_b64: Annotated[Optional[str], Field(description="A base64 encoded audio file to be used as input for music generation or transformation.")] = None,
+    save_to_file: Annotated[bool, Field(description="If True, uploads the generated audio to ImageKit for persistent storage and URL access.")] = True,
 ) -> Union[Audio, str]:
     """
     Generates music using the Chutes music generation API.
@@ -54,13 +61,14 @@ def generate_music(
 
     try:
         logger.info(f"Calling Chutes Music API at {music_endpoint} for music generation.")
-        response = requests.post(
-            music_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        audio_data = response.content
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                music_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                audio_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received audio data from Chutes Music API.")
 
         url = None
@@ -80,8 +88,8 @@ def generate_music(
         logger.info("Exiting generate_music function with successful response.")
         return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes Music API in generate_music: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        logger.error(f"AIOHTTP ClientError calling Chutes Music API in generate_music: {e}")
         raise ToolError(f"Error calling Chutes Music API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in generate_music: {e}", exc_info=True)

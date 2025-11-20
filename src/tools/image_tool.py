@@ -3,27 +3,36 @@ import aiohttp
 from loguru import logger
 import requests
 import uuid
-from typing import Optional, List, Union, Dict
+from typing import Optional, List, Union, Dict, Annotated
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import Image
 from src.utils.imagekit_uploader import upload_to_imagekit
+from pydantic import Field
+from fastmcp.tools.tool import ToolResult
+from mcp.types import TextContent
+
 
 @mcp.tool(
     name="generate_image",
-    description="Generates an image from a text prompt. By default, uploads the image to ImageKit as a side effect. If `analyze_image_with_llm` is True, returns a dictionary containing the generated Image object and the LLM's analysis of the image."
+    description="Generates an image from a text prompt. By default, uploads the image to ImageKit as a side effect. If `analyze_image_with_llm` is True, returns a dictionary containing the generated Image object and the LLM's analysis of the image.",
+    annotations={
+        "title": "Generate Image",
+        "readOnlyHint": False,  # Because it uploads to ImageKit
+        "openWorldHint": True   # Because it calls external APIs
+    }
 )
 async def generate_image(
-    prompt: str,
-    negative_prompt: Optional[str] = None,
-    width: int = 1024,
-    height: int = 1024,
-    num_inference_steps: int = 25,
-    seed: Optional[int] = None,
-    save_to_file: bool = True,
-    analyze_image_with_llm: bool = False,
-) -> Union[Image, str, Dict[str, Union[Image, str]]]:
+    prompt: Annotated[str, Field(description="A detailed text description of the image to be generated. Be specific about subjects, styles, and mood.")],
+    negative_prompt: Annotated[Optional[str], Field(description="A text description of elements or styles to avoid in the generated image.")] = None,
+    width: Annotated[int, Field(description="The width of the generated image in pixels.", ge=256, le=2048)] = 1024,
+    height: Annotated[int, Field(description="The height of the generated image in pixels.", ge=256, le=2048)] = 1024,
+    num_inference_steps: Annotated[int, Field(description="The number of denoising steps for image generation. Higher values can improve quality but increase generation time.", ge=10, le=60)] = 25,
+    seed: Annotated[Optional[int], Field(description="An optional seed for reproducible image generation. If not provided, a random seed will be used.")] = None,
+    save_to_file: Annotated[bool, Field(description="If True, the generated image will be uploaded to ImageKit for persistent storage and URL access.")] = True,
+    analyze_image_with_llm: Annotated[bool, Field(description="If True, the generated image will be sent to an LLM for detailed analysis and description.")] = False,
+) -> Union[Image, ToolResult]:
     """
     Generates an image using the Chutes image generation API.
 
@@ -113,7 +122,30 @@ async def generate_image(
                 images=[image_data]
             )
             logger.info("LLM image analysis complete.")
-            return {"image": generated_image_obj, "llm_analysis": llm_analysis, "url": url or "Failed to upload to ImageKit."}
+            
+            # Prepare content for ToolResult
+            human_readable_content = [
+                TextContent(type="text", text=f"Generated image and its analysis:\n{llm_analysis}"),
+                generated_image_obj # The Image object will be automatically converted to ImageContent
+            ]
+            
+            structured_data = {
+                "image_url": url,
+                "llm_analysis": llm_analysis,
+                "image_details": {
+                    "width": width,
+                    "height": height,
+                    "prompt": prompt,
+                    "negative_prompt": negative_prompt,
+                    "num_inference_steps": num_inference_steps,
+                    "seed": seed,
+                }
+            }
+            
+            return ToolResult(
+                content=human_readable_content,
+                structured_content=structured_data
+            )
         
         logger.info("Exiting generate_image function with successful response.")
         return generated_image_obj
@@ -127,18 +159,23 @@ async def generate_image(
 
 @mcp.tool(
     name="edit_image",
-    description="Edits an image based on a text prompt. By default, uploads the image to ImageKit as a side effect."
+    description="Edits an image based on a text prompt. By default, uploads the image to ImageKit as a side effect.",
+    annotations={
+        "title": "Edit Image",
+        "readOnlyHint": False,  # Because it uploads to ImageKit
+        "openWorldHint": True   # Because it calls external APIs
+    }
 )
-def edit_image(
-    prompt: str,
-    image_b64s: List[str],
-    negative_prompt: Optional[str] = "",
-    width: int = 1024,
-    height: int = 1024,
-    num_inference_steps: int = 30,
-    seed: Optional[int] = None,
-    true_cfg_scale: float = 4.0,
-    save_to_file: bool = True,
+async def edit_image( # Changed to async def
+    prompt: Annotated[str, Field(description="A text description of the desired edit.")],
+    image_b64s: Annotated[List[str], Field(description="A list of base64 encoded images to be edited.")],
+    negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the image.")] = "",
+    width: Annotated[int, Field(description="The width of the generated image.", ge=256, le=2048)] = 1024,
+    height: Annotated[int, Field(description="The height of the generated image.", ge=256, le=2048)] = 1024,
+    num_inference_steps: Annotated[int, Field(description="The number of denoising steps.", ge=10, le=60)] = 30,
+    seed: Annotated[Optional[int], Field(description="A seed for reproducible generation.")] = None,
+    true_cfg_scale: Annotated[float, Field(description="A parameter to control how much the model should follow the prompt.", ge=1.0, le=20.0)] = 4.0,
+    save_to_file: Annotated[bool, Field(description="If True, uploads the image to ImageKit as a side effect.")] = True,
 ) -> Union[Image, str]:
     """
     Edits an image using the Chutes image editing API.
@@ -185,13 +222,14 @@ def edit_image(
 
     try:
         logger.info(f"Calling Chutes Image Edit API at {image_edit_endpoint} for image editing.")
-        response = requests.post(
-            image_edit_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        image_data = response.content
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                image_edit_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                image_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received edited image data from Chutes Image Edit API.")
 
         url = None
@@ -216,8 +254,8 @@ def edit_image(
         logger.info("Exiting edit_image function with successful response.")
         return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes Image Edit API in edit_image: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        logger.error(f"AIOHTTP ClientError calling Chutes Image Edit API in edit_image: {e}")
         raise ToolError(f"Error calling Chutes Image Edit API: {e}")
     except Exception as e:
         logger.error(f"An unexpected error occurred in edit_image: {e}", exc_info=True)
@@ -225,11 +263,16 @@ def edit_image(
 
 @mcp.tool(
     name="describe_image",
-    description="Analyzes an image and provides a detailed description using a multimodal LLM."
+    description="Analyzes an image and provides a detailed description using a multimodal LLM.",
+    annotations={
+        "title": "Describe Image",
+        "readOnlyHint": True,   # It only describes, doesn't modify
+        "openWorldHint": True    # It interacts with an external LLM
+    }
 )
 async def describe_image(
-    image_b64s: List[str],
-    prompt: str = "Describe this image in detail and identify any key objects or themes.",
+    image_b64s: Annotated[List[str], Field(description="A list of base64 encoded images to be described.")],
+    prompt: Annotated[str, Field(description="The prompt to send to the LLM for image description.")] = "Describe this image in detail and identify any key objects or themes.",
     
 ) -> str:
     """
