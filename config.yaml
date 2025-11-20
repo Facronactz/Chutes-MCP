@@ -11,7 +11,8 @@ chutes:
     image_to_video: https://chutes-wan2-1-14b.chutes.ai/image2video
     image_to_video_fast: https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate
   models:
-    llm: deepseek-ai/DeepSeek-R1-0528
+    llm: deepseek-ai/DeepSeek-V3.1
+    vision_llm: OpenGVLab/InternVL3-78B
     text_to_image: qwen-image
     text_to_music: ASLP-lab/DiffRhythm
     image_to_image: Qwen/Qwen-Image-Edit-2509
@@ -26,7 +27,8 @@ imagekit:
 
 metadata:
   models:
-    llm: deepseek-ai/DeepSeek-R1-0528
+    llm: deepseek-ai/DeepSeek-V3.1
+    vision_llm: OpenGVLab/InternVL3-78B
     text_to_image: Qwen/Qwen-Image
     text_to_music: ASLP-lab/DiffRhythm
     image_to_image: Qwen/Qwen-Image-Edit-2509

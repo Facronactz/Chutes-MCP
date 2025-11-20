@@ -13,12 +13,12 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
     logger.debug(f"Added project root to sys.path: {project_root}")
 
-# Import the central mcp object
-from src.mcp_instance import mcp
-
 logger.info("Loading environment variables...")
 load_dotenv()
 logger.info("Environment variables loaded.")
+
+# Import the central mcp object
+from src.mcp_instance import mcp
 
 # Import main to load the tools, which will decorate the mcp object
 logger.info("Importing tool modules...")

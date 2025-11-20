@@ -3,7 +3,7 @@ import aiohttp
 from loguru import logger
 import requests
 import uuid
-from typing import Optional, List, Union
+from typing import Optional, List, Union, Dict
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
@@ -12,7 +12,7 @@ from src.utils.imagekit_uploader import upload_to_imagekit
 
 @mcp.tool(
     name="generate_image",
-    description="Generates an image from a text prompt. By default, uploads the image to ImageKit as a side effect."
+    description="Generates an image from a text prompt. By default, uploads the image to ImageKit as a side effect. If `analyze_image_with_llm` is True, returns a dictionary containing the generated Image object and the LLM's analysis of the image."
 )
 async def generate_image(
     prompt: str,
@@ -22,7 +22,8 @@ async def generate_image(
     num_inference_steps: int = 25,
     seed: Optional[int] = None,
     save_to_file: bool = True,
-) -> Union[Image, str]:
+    analyze_image_with_llm: bool = False,
+) -> Union[Image, str, Dict[str, Union[Image, str]]]:
     """
     Generates an image using the Chutes image generation API.
 
@@ -33,10 +34,12 @@ async def generate_image(
     :param num_inference_steps: The number of denoising steps.
     :param seed: A seed for reproducible generation.
     :param save_to_file: If True, uploads the image to ImageKit as a side effect.
-    :return: An Image object on success, or an error message string.
+    :param analyze_image_with_llm: If True, the generated image will be analyzed by an LLM.
+    :return: An Image object on success, or an error message string. If analyze_image_with_llm is True,
+             returns a dictionary containing the Image object and the LLM's analysis.
     """
     logger.info("Entering generate_image function.")
-    logger.debug(f"Generate Image Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, save_to_file={save_to_file}")
+    logger.debug(f"Generate Image Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, save_to_file={save_to_file}, analyze_image_with_llm={analyze_image_with_llm}")
 
     if num_inference_steps > 60:
         logger.error(f"num_inference_steps (got {num_inference_steps}) cannot exceed 60.")
@@ -100,8 +103,20 @@ async def generate_image(
             else:
                 logger.error("Failed to upload generated image to ImageKit.")
         
+        generated_image_obj = Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
+        
+        if analyze_image_with_llm:
+            logger.info("Analyzing generated image with LLM.")
+            analysis_prompt = "Describe this image in detail and identify any key objects or themes."
+            llm_analysis = await mcp.multimodal_llm.ask_with_images(
+                prompt=analysis_prompt,
+                images=[image_data]
+            )
+            logger.info("LLM image analysis complete.")
+            return {"image": generated_image_obj, "llm_analysis": llm_analysis, "url": url or "Failed to upload to ImageKit."}
+        
         logger.info("Exiting generate_image function with successful response.")
-        return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
+        return generated_image_obj
 
     except aiohttp.ClientError as e:
         logger.error(f"AIOHTTP ClientError calling Chutes Image API in generate_image: {e}")
