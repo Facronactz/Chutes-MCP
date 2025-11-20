@@ -4,6 +4,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, Union, Annotated
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
@@ -21,6 +22,7 @@ from pydantic import Field
     }
 )
 async def generate_music( # Changed to async def
+    context: Context,
     style_prompt: Annotated[Optional[str], Field(description="A description of the desired music style, e.g., 'lo-fi beat', 'classical piano', 'rock anthem'.")] = None,
     lyrics: Annotated[Optional[str], Field(description="The lyrics for the song. If provided, the music will be generated to match these lyrics.")] = None,
     audio_b64: Annotated[Optional[str], Field(description="A base64 encoded audio file to be used as input for music generation or transformation.")] = None,
@@ -37,6 +39,13 @@ async def generate_music( # Changed to async def
     """
     logger.info("Entering generate_music function.")
     logger.debug(f"Generate Music Parameters: style_prompt='{style_prompt}', lyrics='{lyrics}', audio_b64={'<present>' if audio_b64 else '<absent>'}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing music generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -60,6 +69,7 @@ async def generate_music( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Music API for generation.")
         logger.info(f"Calling Chutes Music API at {music_endpoint} for music generation.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
@@ -70,9 +80,13 @@ async def generate_music( # Changed to async def
                 response.raise_for_status()
                 audio_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received audio data from Chutes Music API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Music data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated music to ImageKit.")
             logger.debug("Uploading generated music to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.text_to_music"),
@@ -85,6 +99,7 @@ async def generate_music( # Changed to async def
             else:
                 logger.error("Failed to upload generated music to ImageKit.")
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Music generation complete. Returning result.")
         logger.info("Exiting generate_music function with successful response.")
         return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 

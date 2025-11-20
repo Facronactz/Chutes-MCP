@@ -3,8 +3,9 @@ import aiohttp
 import json
 from loguru import logger
 import requests
-from typing import List, Dict, Annotated # Added Annotated here
-from pydantic import Field # Added Field here
+from typing import List, Dict, Annotated
+from fastmcp import Context
+from pydantic import Field
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
@@ -19,6 +20,7 @@ from src.config import config
     }
 )
 async def stream_chat(
+    context: Context,
     messages: Annotated[List[Dict[str, str]], Field(description="A list of message objects, each with a 'role' (e.g., 'user', 'assistant') and 'content' string. Represents the conversation history.")],
     model: Annotated[str, Field(description="The model to use for the completion.")] = config.get("chutes.models.llm"),
     temperature: Annotated[float, Field(description="The sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.", ge=0.0, le=2.0)] = 0.7,
@@ -61,7 +63,9 @@ async def stream_chat(
 
     full_response = ""
     try:
+        await context.report_progress(progress=0, total=2, message="Preparing LLM streaming request.")
         async with aiohttp.ClientSession() as session:
+            await context.report_progress(progress=1, total=2, message="Connecting to LLM API...")
             async with session.post(
                 llm_endpoint,
                 headers=headers,
@@ -85,6 +89,7 @@ async def stream_chat(
                             logger.error(f"JSONDecodeError processing stream chunk: {e} - Data: {data}")
                         except Exception as e:
                             logger.error(f"Error processing stream chunk: {e} - Data: {data}")
+        await context.report_progress(progress=2, total=2, message="LLM stream completed.")
     except aiohttp.ClientError as e:
         logger.error(f"AIOHTTP ClientError in stream_chat: {e}")
         raise ToolError(f"Error connecting to Chutes API: {e}")
@@ -105,6 +110,7 @@ async def stream_chat(
     }
 )
 async def chat( # Changed to async def
+    context: Context,
     messages: Annotated[List[Dict[str, str]], Field(description="A list of message objects, each with a 'role' (e.g., 'user', 'assistant') and 'content' string. Represents the conversation history.")],
     model: Annotated[str, Field(description="The model to use for the completion.")] = config.get("chutes.models.llm"),
     temperature: Annotated[float, Field(description="The sampling temperature to use, between 0 and 2. Higher values like 0.8 will make the output more random, while lower values like 0.2 will make it more focused and deterministic.", ge=0.0, le=2.0)] = 0.7,
@@ -146,7 +152,9 @@ async def chat( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=0, total=2, message="Preparing LLM request.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            await context.report_progress(progress=1, total=2, message="Sending request to LLM API...")
             async with session.post( # Changed to aiohttp
                 llm_endpoint,
                 headers=headers,
@@ -154,6 +162,7 @@ async def chat( # Changed to async def
             ) as response:
                 response.raise_for_status()
                 response_data = await response.json() # Changed to await response.json()
+        await context.report_progress(progress=2, total=2, message="Received response from LLM API.")
         logger.info("Chat function successfully received response.")
         logger.debug(f"Chat response data: {response_data}")
         return response_data["choices"][0]["message"]["content"]

@@ -3,6 +3,7 @@ from loguru import logger
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.exceptions import ToolError
+from fastmcp import Context
 from typing import Annotated, List, Dict, Union # Added Annotated, List, Dict, Union
 from pydantic import Field # Added Field
 from fastmcp.tools.tool import ToolResult # Added ToolResult
@@ -17,15 +18,18 @@ from mcp.types import TextContent # Added TextContent
         "openWorldHint": True   # It interacts with external APIs
     }
 )
-async def check_mcp_status() -> ToolResult: # Changed return type to ToolResult
+async def check_mcp_status(context: Context) -> ToolResult: # Changed return type to ToolResult
     """
     Performs a health check on the MCP server and its external endpoint connections.
     """
+    total_steps = 10 # 1 (start) + 1 (mcp status) + 7 (endpoints) + 1 (quota)
+    await context.report_progress(progress=0, total=total_steps, message="Starting MCP system health check.")
     logger.info("Starting MCP system health check.")
     status_messages = []
     structured_statuses = [] # New list for structured data
 
     # Check MCP server internal status
+    await context.report_progress(progress=1, total=total_steps, message="Checking MCP server instance status.")
     mcp_status = {"component": "MCP Server Instance", "status": "UNKNOWN", "details": ""}
     if mcp:
         mcp_status["status"] = "SUCCESS"
@@ -55,8 +59,10 @@ async def check_mcp_status() -> ToolResult: # Changed return type to ToolResult
         "Authorization": f"Bearer {api_token}" if api_token else ""
     }
 
+    current_progress = 2 # Starting after MCP status check (step 1)
     async with aiohttp.ClientSession() as session:
         for name, url in endpoints_to_check.items():
+            await context.report_progress(progress=current_progress, total=total_steps, message=f"Checking {name} endpoint.")
             check_result = {"component": name, "status": "UNKNOWN", "details": ""}
             if url:
                 try:
@@ -82,8 +88,10 @@ async def check_mcp_status() -> ToolResult: # Changed return type to ToolResult
                 check_result["details"] = "Endpoint is not configured."
                 status_messages.append(f"INFO: {name} endpoint is not configured.")
             structured_statuses.append(check_result)
+            current_progress += 1
 
         # Add Quota Usage check
+        await context.report_progress(progress=current_progress, total=total_steps, message="Checking quota usage API.")
         quota_check_result = {"component": "Quota Usage API", "status": "UNKNOWN", "details": ""}
         if api_token:
             quota_url = "https://api.chutes.ai/users/me/quota_usage/0"
@@ -111,8 +119,9 @@ async def check_mcp_status() -> ToolResult: # Changed return type to ToolResult
             quota_check_result["details"] = "Chutes API token not configured for Quota Usage check."
             status_messages.append("INFO: Chutes API token not configured for Quota Usage check.")
         structured_statuses.append(quota_check_result)
+        current_progress += 1 # Increment for quota check
 
-
+    await context.report_progress(progress=total_steps, total=total_steps, message="MCP system health check completed.")
     logger.info("MCP system health check completed.")
     
     return ToolResult(

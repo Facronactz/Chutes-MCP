@@ -3,6 +3,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, Union, Annotated
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
@@ -20,6 +21,7 @@ from pydantic import Field
     }
 )
 async def generate_video_from_text( # Changed to async def
+    context: Context,
     prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
     negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
     resolution: Annotated[str, Field(description="The resolution of the video (e.g., '832*480', '1024*576').")] = "832*480",
@@ -46,6 +48,13 @@ async def generate_video_from_text( # Changed to async def
     """
     logger.info("Entering generate_video_from_text function.")
     logger.debug(f"Generate Video from Text Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', resolution='{resolution}', fps={fps}, frames={frames}, steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing text-to-video generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -74,6 +83,7 @@ async def generate_video_from_text( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Text-to-Video API for generation.")
         logger.info(f"Calling Chutes Text-to-Video API at {video_endpoint} for video generation.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
@@ -84,9 +94,13 @@ async def generate_video_from_text( # Changed to async def
                 response.raise_for_status()
                 video_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received video data from Chutes Text-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.text_to_video"),
@@ -105,6 +119,7 @@ async def generate_video_from_text( # Changed to async def
             else:
                 logger.error("Failed to upload generated video to ImageKit.")
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Video generation complete. Returning result.")
         logger.info("Exiting generate_video_from_text function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
@@ -125,6 +140,7 @@ async def generate_video_from_text( # Changed to async def
     }
 )
 async def generate_video_from_image( # Changed to async def
+    context: Context,
     prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
     image_b64: Annotated[str, Field(description="A base64 encoded image to use as the starting point for video generation.")],
     negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
@@ -147,6 +163,13 @@ async def generate_video_from_image( # Changed to async def
     """
     logger.info("Entering generate_video_from_image function.")
     logger.debug(f"Generate Video from Image Parameters: prompt='{prompt}', image_b64={'<present>' if image_b64 else '<absent>'}, negative_prompt='{negative_prompt}', steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image-to-video generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -173,6 +196,7 @@ async def generate_video_from_image( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Image-to-Video API for generation.")
         logger.info(f"Calling Chutes Image-to-Video API at {video_endpoint} for video generation.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
@@ -183,9 +207,13 @@ async def generate_video_from_image( # Changed to async def
                 response.raise_for_status()
                 video_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received video data from Chutes Image-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.image_to_video"),
@@ -201,6 +229,7 @@ async def generate_video_from_image( # Changed to async def
             else:
                 logger.error("Failed to upload generated video to ImageKit.")
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Video generation complete. Returning result.")
         logger.info("Exiting generate_video_from_image function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
@@ -220,6 +249,7 @@ async def generate_video_from_image( # Changed to async def
     }
 )
 async def generate_video_from_image_fast( # Changed to async def
+    context: Context,
     prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
     image: Annotated[str, Field(description="Image URL or base64 encoded data to use as the starting point for video generation.")],
     negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
@@ -251,6 +281,13 @@ async def generate_video_from_image_fast( # Changed to async def
     logger.info("Entering generate_video_from_image_fast function.")
     logger.debug(f"Generate Video from Image Fast Parameters: prompt='{prompt}', image={'<present>' if image else '<absent>'}, negative_prompt='{negative_prompt}', fps={fps}, frames={frames}, guidance_scale={guidance_scale}, guidance_scale_2={guidance_scale_2}, seed={seed}, fast={fast}, resolution='{resolution}', save_to_file={save_to_file}")
 
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing fast image-to-video generation request.")
+    current_progress += 1
+
     api_token = config.get("chutes.api_token")
     if not api_token:
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image_fast.")
@@ -280,6 +317,7 @@ async def generate_video_from_image_fast( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Fast Image-to-Video API for generation.")
         logger.info(f"Calling Chutes Fast Image-to-Video API at {video_endpoint} for video generation.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
@@ -290,9 +328,13 @@ async def generate_video_from_image_fast( # Changed to async def
                 response.raise_for_status()
                 video_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received video data from Chutes Fast Image-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
             logger.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.image_to_video_fast"),
@@ -312,6 +354,7 @@ async def generate_video_from_image_fast( # Changed to async def
             else:
                 logger.error("Failed to upload generated video to ImageKit.")
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Fast image-to-video generation complete. Returning result.")
         logger.info("Exiting generate_video_from_image_fast function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 

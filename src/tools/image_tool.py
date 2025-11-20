@@ -4,6 +4,7 @@ from loguru import logger
 import requests
 import uuid
 from typing import Optional, List, Union, Dict, Annotated
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
@@ -24,6 +25,7 @@ from mcp.types import TextContent
     }
 )
 async def generate_image(
+    context: Context,
     prompt: Annotated[str, Field(description="A detailed text description of the image to be generated. Be specific about subjects, styles, and mood.")],
     negative_prompt: Annotated[Optional[str], Field(description="A text description of elements or styles to avoid in the generated image.")] = None,
     width: Annotated[int, Field(description="The width of the generated image in pixels.", ge=256, le=2048)] = 1024,
@@ -49,6 +51,13 @@ async def generate_image(
     """
     logger.info("Entering generate_image function.")
     logger.debug(f"Generate Image Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, save_to_file={save_to_file}, analyze_image_with_llm={analyze_image_with_llm}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0) + (1 if analyze_image_with_llm else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image generation request.")
+    current_progress += 1
 
     if num_inference_steps > 60:
         logger.error(f"num_inference_steps (got {num_inference_steps}) cannot exceed 60.")
@@ -83,6 +92,7 @@ async def generate_image(
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Image API for generation.")
         logger.info(f"Calling Chutes Image API at {image_endpoint} for image generation.")
         async with aiohttp.ClientSession() as session:
             async with session.post(
@@ -93,9 +103,13 @@ async def generate_image(
                 response.raise_for_status()
                 image_data = await response.read()
         logger.info("Successfully received image data from Chutes Image API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Image data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated image to ImageKit.")
             logger.debug("Uploading generated image to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.text_to_image"),
@@ -115,6 +129,8 @@ async def generate_image(
         generated_image_obj = Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
         
         if analyze_image_with_llm:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Analyzing generated image with LLM.")
             logger.info("Analyzing generated image with LLM.")
             analysis_prompt = "Describe this image in detail and identify any key objects or themes."
             llm_analysis = await mcp.multimodal_llm.ask_with_images(
@@ -142,11 +158,13 @@ async def generate_image(
                 }
             }
             
+            await context.report_progress(progress=total_steps, total=total_steps, message="Image analysis complete. Returning result.")
             return ToolResult(
                 content=human_readable_content,
                 structured_content=structured_data
             )
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Image generation complete. Returning result.")
         logger.info("Exiting generate_image function with successful response.")
         return generated_image_obj
 
@@ -167,6 +185,7 @@ async def generate_image(
     }
 )
 async def edit_image( # Changed to async def
+    context: Context,
     prompt: Annotated[str, Field(description="A text description of the desired edit.")],
     image_b64s: Annotated[List[str], Field(description="A list of base64 encoded images to be edited.")],
     negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the image.")] = "",
@@ -193,6 +212,13 @@ async def edit_image( # Changed to async def
     """
     logger.info("Entering edit_image function.")
     logger.debug(f"Edit Image Parameters: prompt='{prompt}', width={width}, height={height}, num_inference_steps={num_inference_steps}, seed={seed}, true_cfg_scale={true_cfg_scale}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image editing request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
@@ -221,6 +247,7 @@ async def edit_image( # Changed to async def
     }
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Image Edit API for editing.")
         logger.info(f"Calling Chutes Image Edit API at {image_edit_endpoint} for image editing.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
@@ -231,9 +258,13 @@ async def edit_image( # Changed to async def
                 response.raise_for_status()
                 image_data = await response.read() # Changed to await response.read()
         logger.info("Successfully received edited image data from Chutes Image Edit API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Edited image data received.")
 
         url = None
         if save_to_file:
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading edited image to ImageKit.")
             logger.debug("Uploading edited image to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.image_to_image"),
@@ -251,6 +282,7 @@ async def edit_image( # Changed to async def
             else:
                 logger.error("Failed to upload edited image to ImageKit.")
         
+        await context.report_progress(progress=total_steps, total=total_steps, message="Image editing complete. Returning result.")
         logger.info("Exiting edit_image function with successful response.")
         return Image(data=image_data, format="jpeg", annotations={"imagekit_url": url} if url else None)
 
@@ -271,9 +303,9 @@ async def edit_image( # Changed to async def
     }
 )
 async def describe_image(
+    context: Context,
     image_b64s: Annotated[List[str], Field(description="A list of base64 encoded images to be described.")],
     prompt: Annotated[str, Field(description="The prompt to send to the LLM for image description.")] = "Describe this image in detail and identify any key objects or themes.",
-    
 ) -> str:
     """
     Describes an image using the Chutes Multimodal LLM.
@@ -285,16 +317,25 @@ async def describe_image(
     logger.info("Entering describe_image function.")
     logger.debug(f"Describe Image Parameters: prompt='{prompt}', number of images={len(image_b64s)}")
 
+    total_steps = 3 # Prepare, Call LLM, Receive Data
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image description request.")
+    current_progress += 1
+
     if not image_b64s:
         raise ToolError("No images provided for description.")
 
     try:
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Multimodal LLM for image description.")
         logger.info("Calling Multimodal LLM for image description.")
         llm_description = await mcp.multimodal_llm.ask_with_images(
             prompt=prompt,
             images=image_b64s
         )
         logger.info("Multimodal LLM image description complete.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Image description received. Returning result.")
         return llm_description
     except Exception as e:
         logger.error(f"An unexpected error occurred in describe_image: {e}", exc_info=True)
