@@ -35,10 +35,10 @@ def generate_music(
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_music.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
-    music_endpoint = config.get("chutes.endpoints.music")
+    music_endpoint = config.get("chutes.endpoints.text_to_music")
     if not music_endpoint:
-        logger.warning("Music endpoint not configured in config.yaml for generate_music.")
-        return "Error: Music endpoint not configured in config.yaml."
+        logger.warning("Text-to-music endpoint not configured in config.yaml for generate_music.")
+        return "Error: Text-to-music endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -66,6 +66,7 @@ def generate_music(
         if save_to_file:
             logger.debug("Uploading generated music to ImageKit.")
             metadata = {
+                "model": config.get("chutes.models.text_to_music"),
                 "style_prompt": style_prompt,
                 "lyrics": lyrics,
             }

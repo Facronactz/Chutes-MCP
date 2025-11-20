@@ -24,9 +24,9 @@ async def check_mcp_status() -> str:
     # Check external endpoint connections
     endpoints_to_check = {
         "LLM": config.get("chutes.endpoints.llm"),
-        "Image": config.get("chutes.endpoints.image"),
-        "Music": config.get("chutes.endpoints.music"),
-        "Image Edit": config.get("chutes.endpoints.image_edit"),
+        "Text to Image": config.get("chutes.endpoints.text_to_image"),
+        "Text to Music": config.get("chutes.endpoints.text_to_music"),
+        "Image to Image": config.get("chutes.endpoints.image_to_image"),
         "Text to Video": config.get("chutes.endpoints.text_to_video"),
         "Image to Video": config.get("chutes.endpoints.image_to_video"),
         "Image to Video Fast": config.get("chutes.endpoints.image_to_video_fast"),

@@ -13,7 +13,7 @@ from src.config import config
 )
 async def stream_chat(
     messages: List[Dict[str, str]],
-    model: str = "deepseek-ai/DeepSeek-R1-0528",
+    model: str = config.get("chutes.models.llm"),
     temperature: float = 0.7,
     max_tokens: int = 1024,
 ) -> str:
@@ -94,7 +94,7 @@ async def stream_chat(
 )
 def chat(
     messages: List[Dict[str, str]],
-    model: str = "deepseek-ai/DeepSeek-R1-0528",
+    model: str = config.get("chutes.models.llm"),
     temperature: float = 0.7,
     max_tokens: int = 1024,
 ) -> str:

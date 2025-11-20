@@ -42,10 +42,10 @@ async def generate_image(
         logger.warning("CHUTES_API_TOKEN environment variable not set for generate_image.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
-    image_endpoint = config.get("chutes.endpoints.image")
+    image_endpoint = config.get("chutes.endpoints.text_to_image")
     if not image_endpoint:
-        logger.warning("Image endpoint not configured in config.yaml for generate_image.")
-        return "Error: Image endpoint not configured in config.yaml."
+        logger.warning("Text-to-image endpoint not configured in config.yaml for generate_image.")
+        return "Error: Text-to-image endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -56,7 +56,7 @@ async def generate_image(
         negative_prompt = ""
 
     body = {
-        "model": "qwen-image",
+        "model": config.get("chutes.models.text_to_image"),
         "prompt": prompt,
         "negative_prompt": negative_prompt,
         "width": width,
@@ -81,6 +81,7 @@ async def generate_image(
         if save_to_file:
             logger.debug("Uploading generated image to ImageKit.")
             metadata = {
+                "model": config.get("chutes.models.text_to_image"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "width": width,
@@ -141,10 +142,10 @@ def edit_image(
         logger.warning("CHUTES_API_TOKEN environment variable not set for edit_image.")
         return "Error: CHUTES_API_TOKEN environment variable not set."
 
-    image_edit_endpoint = config.get("chutes.endpoints.image_edit")
+    image_edit_endpoint = config.get("chutes.endpoints.image_to_image")
     if not image_edit_endpoint:
-        logger.warning("Image edit endpoint not configured in config.yaml for edit_image.")
-        return "Error: Image edit endpoint not configured in config.yaml."
+        logger.warning("Image-to-image endpoint not configured in config.yaml for edit_image.")
+        return "Error: Image-to-image endpoint not configured in config.yaml."
 
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -177,6 +178,7 @@ def edit_image(
         if save_to_file:
             logger.debug("Uploading edited image to ImageKit.")
             metadata = {
+                "model": config.get("chutes.models.image_to_image"),
                 "prompt": prompt,
                 "negative_prompt": negative_prompt,
                 "width": width,

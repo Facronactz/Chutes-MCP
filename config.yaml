@@ -4,12 +4,20 @@ chutes:
   api_token: ${CHUTES_API_TOKEN}
   endpoints:
     llm: https://llm.chutes.ai/v1/chat/completions
-    image: https://image.chutes.ai/generate
-    music: https://chutes-diffrhythm.chutes.ai/generate
-    image_edit: https://chutes-qwen-image-edit-2509.chutes.ai/generate
+    text_to_image: https://image.chutes.ai/generate
+    text_to_music: https://chutes-diffrhythm.chutes.ai/generate
+    image_to_image: https://chutes-qwen-image-edit-2509.chutes.ai/generate
     text_to_video: https://chutes-wan2-1-14b.chutes.ai/text2video
     image_to_video: https://chutes-wan2-1-14b.chutes.ai/image2video
     image_to_video_fast: https://chutes-wan-2-2-i2v-14b-fast.chutes.ai/generate
+  models:
+    llm: deepseek-ai/DeepSeek-R1-0528
+    text_to_image: Qwen/Qwen-Image
+    text_to_music: ASLP-lab/DiffRhythm
+    image_to_image: Qwen/Qwen-Image-Edit-2509
+    text_to_video: Wan-AI/Wan2.1-T2V-14B
+    image_to_video: Wan-AI/Wan2.1-I2V-14B-480P
+    image_to_video_fast: PrunaAI/Wan2.2-I2V-A14B-v2
 
 imagekit:
   public_key: ${IMAGEKIT_PUBLIC_KEY}
