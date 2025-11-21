@@ -24,7 +24,7 @@ async def check_mcp_status(context: Context) -> ToolResult: # Changed return typ
     """
     total_steps = 10 # 1 (start) + 1 (mcp status) + 7 (endpoints) + 1 (quota)
     await context.report_progress(progress=0, total=total_steps, message="Starting MCP system health check.")
-    logger.info("Starting MCP system health check.")
+    await context.info("Starting MCP system health check.")
     status_messages = []
     structured_statuses = [] # New list for structured data
 
@@ -122,7 +122,7 @@ async def check_mcp_status(context: Context) -> ToolResult: # Changed return typ
         current_progress += 1 # Increment for quota check
 
     await context.report_progress(progress=total_steps, total=total_steps, message="MCP system health check completed.")
-    logger.info("MCP system health check completed.")
+    await context.info("MCP system health check completed.")
     
     return ToolResult(
         content=[TextContent(type="text", text="\n".join(status_messages))],

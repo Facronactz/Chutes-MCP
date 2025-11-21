@@ -35,17 +35,17 @@ async def stream_chat(
     :param max_tokens: The maximum number of tokens to generate.
     :return: The full response from the LLM.
     """
-    logger.info("Entering stream_chat function.")
-    logger.debug(f"Stream Chat Parameters: model={model}, temperature={temperature}, max_tokens={max_tokens}")
+    await context.info("Entering stream_chat function.")
+    await context.debug(f"Stream Chat Parameters: model={model}, temperature={temperature}, max_tokens={max_tokens}")
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for stream_chat.")
+        await context.warning("CHUTES_API_TOKEN environment variable not set for stream_chat.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     llm_endpoint = config.get("chutes.endpoints.llm")
     if not llm_endpoint:
-        logger.warning("LLM endpoint not configured in config.yaml for stream_chat.")
+        await context.warning("LLM endpoint not configured in config.yaml for stream_chat.")
         raise ToolError("LLM endpoint not configured in config.yaml.")
 
     headers = {
@@ -72,13 +72,13 @@ async def stream_chat(
                 json=body
             ) as response:
                 response.raise_for_status()  # Raise an exception for bad status codes
-                logger.debug(f"Stream chat request sent to {llm_endpoint}, status: {response.status}")
+                await context.debug(f"Stream chat request sent to {llm_endpoint}, status: {response.status}")
                 async for line in response.content:
                     line = line.decode("utf-8").strip()
                     if line.startswith("data: "):
                         data = line[6:]
                         if data == "[DONE]":
-                            logger.debug("Stream finished with [DONE] signal.")
+                            await context.debug("Stream finished with [DONE] signal.")
                             break
                         try:
                             chunk_data = json.loads(data)
@@ -86,18 +86,18 @@ async def stream_chat(
                                 chunk_content = chunk_data["choices"][0]["delta"]["content"]
                                 full_response += chunk_content
                         except json.JSONDecodeError as e:
-                            logger.error(f"JSONDecodeError processing stream chunk: {e} - Data: {data}")
+                            await context.error(f"JSONDecodeError processing stream chunk: {e} - Data: {data}")
                         except Exception as e:
-                            logger.error(f"Error processing stream chunk: {e} - Data: {data}")
+                            await context.error(f"Error processing stream chunk: {e} - Data: {data}")
         await context.report_progress(progress=2, total=2, message="LLM stream completed.")
     except aiohttp.ClientError as e:
-        logger.error(f"AIOHTTP ClientError in stream_chat: {e}")
+        await context.error(f"AIOHTTP ClientError in stream_chat: {e}")
         raise ToolError(f"Error connecting to Chutes API: {e}")
     except Exception as e:
-        logger.error(f"Unexpected error in stream_chat: {e}")
+        await context.error(f"Unexpected error in stream_chat: {e}")
         raise ToolError(f"An unexpected error occurred: {e}")
     
-    logger.info("Exiting stream_chat function with successful response.")
+    await context.info("Exiting stream_chat function with successful response.")
     return full_response
 
 @mcp.tool(
@@ -125,17 +125,17 @@ async def chat( # Changed to async def
     :param max_tokens: The maximum number of tokens to generate.
     :return: The content of the response from the LLM.
     """
-    logger.info("Entering chat function.")
-    logger.debug(f"Chat Parameters: model={model}, temperature={temperature}, max_tokens={max_tokens}")
+    await context.info("Entering chat function.")
+    await context.debug(f"Chat Parameters: model={model}, temperature={temperature}, max_tokens={max_tokens}")
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for chat.")
+        await context.warning("CHUTES_API_TOKEN environment variable not set for chat.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     llm_endpoint = config.get("chutes.endpoints.llm")
     if not llm_endpoint:
-        logger.warning("LLM endpoint not configured in config.yaml for chat.")
+        await context.warning("LLM endpoint not configured in config.yaml for chat.")
         raise ToolError("LLM endpoint not configured in config.yaml.")
 
     headers = {
@@ -163,15 +163,15 @@ async def chat( # Changed to async def
                 response.raise_for_status()
                 response_data = await response.json() # Changed to await response.json()
         await context.report_progress(progress=2, total=2, message="Received response from LLM API.")
-        logger.info("Chat function successfully received response.")
-        logger.debug(f"Chat response data: {response_data}")
+        await context.info("Chat function successfully received response.")
+        await context.debug(f"Chat response data: {response_data}")
         return response_data["choices"][0]["message"]["content"]
     except aiohttp.ClientError as e: # Changed exception type
-        logger.error(f"AIOHTTP ClientError in chat function: {e}")
+        await context.error(f"AIOHTTP ClientError in chat function: {e}")
         raise ToolError(f"Error connecting to Chutes API: {e}")
     except (KeyError, IndexError) as e:
-        logger.error(f"Error parsing response from Chutes API in chat function: {e} - Response: {response_data if 'response_data' in locals() else 'N/A'}")
+        await context.error(f"Error parsing response from Chutes API in chat function: {e} - Response: {response_data if 'response_data' in locals() else 'N/A'}")
         raise ToolError(f"Error parsing response from Chutes API: {e} - Response: {response_data if 'response_data' in locals() else 'N/A'}")
     except Exception as e:
-        logger.error(f"Unexpected error in chat function: {e}")
+        await context.error(f"Unexpected error in chat function: {e}")
         raise ToolError(f"An unexpected error occurred: {e}")

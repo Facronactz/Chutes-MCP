@@ -37,8 +37,8 @@ async def generate_music( # Changed to async def
     :param save_to_file: If True, uploads the audio to ImageKit as a side effect.
     :return: An Audio object on success, or an error message string.
     """
-    logger.info("Entering generate_music function.")
-    logger.debug(f"Generate Music Parameters: style_prompt='{style_prompt}', lyrics='{lyrics}', audio_b64={'<present>' if audio_b64 else '<absent>'}, save_to_file={save_to_file}")
+    await context.info("Entering generate_music function.")
+    await context.debug(f"Generate Music Parameters: style_prompt='{style_prompt}', lyrics='{lyrics}', audio_b64={'<present>' if audio_b64 else '<absent>'}, save_to_file={save_to_file}")
 
     base_steps = 3  # Prepare, Call API, Receive Data
     total_steps = base_steps + (1 if save_to_file else 0)
@@ -49,12 +49,12 @@ async def generate_music( # Changed to async def
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_music.")
+        await context.warning("CHUTES_API_TOKEN environment variable not set for generate_music.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     music_endpoint = config.get("chutes.endpoints.text_to_music")
     if not music_endpoint:
-        logger.warning("Text-to-music endpoint not configured in config.yaml for generate_music.")
+        await context.warning("Text-to-music endpoint not configured in config.yaml for generate_music.")
         raise ToolError("Text-to-music endpoint not configured in config.yaml.")
 
     headers = {
@@ -70,7 +70,7 @@ async def generate_music( # Changed to async def
 
     try:
         await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Music API for generation.")
-        logger.info(f"Calling Chutes Music API at {music_endpoint} for music generation.")
+        await context.info(f"Calling Chutes Music API at {music_endpoint} for music generation.")
         async with aiohttp.ClientSession() as session: # Changed to aiohttp
             async with session.post( # Changed to aiohttp
                 music_endpoint,
@@ -79,7 +79,7 @@ async def generate_music( # Changed to async def
             ) as response:
                 response.raise_for_status()
                 audio_data = await response.read() # Changed to await response.read()
-        logger.info("Successfully received audio data from Chutes Music API.")
+        await context.info("Successfully received audio data from Chutes Music API.")
         current_progress += 1
         await context.report_progress(progress=current_progress, total=total_steps, message="Music data received.")
 
@@ -87,7 +87,7 @@ async def generate_music( # Changed to async def
         if save_to_file:
             current_progress += 1
             await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated music to ImageKit.")
-            logger.debug("Uploading generated music to ImageKit.")
+            await context.debug("Uploading generated music to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.text_to_music"),
                 "style_prompt": style_prompt,
@@ -95,17 +95,17 @@ async def generate_music( # Changed to async def
             }
             url = upload_to_imagekit(audio_data, "generated_music", metadata, "wav")
             if url:
-                logger.info(f"Generated music uploaded to ImageKit: {url}")
+                await context.info(f"Generated music uploaded to ImageKit: {url}")
             else:
-                logger.error("Failed to upload generated music to ImageKit.")
+                await context.error("Failed to upload generated music to ImageKit.")
         
         await context.report_progress(progress=total_steps, total=total_steps, message="Music generation complete. Returning result.")
-        logger.info("Exiting generate_music function with successful response.")
+        await context.info("Exiting generate_music function with successful response.")
         return Audio(data=audio_data, format="wav", annotations={"imagekit_url": url} if url else None)
 
     except aiohttp.ClientError as e: # Changed exception type
-        logger.error(f"AIOHTTP ClientError calling Chutes Music API in generate_music: {e}")
+        await context.error(f"AIOHTTP ClientError calling Chutes Music API in generate_music: {e}")
         raise ToolError(f"Error calling Chutes Music API: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred in generate_music: {e}", exc_info=True)
+        await context.error(f"An unexpected error occurred in generate_music: {e}", exc_info=True)
         raise ToolError(f"An unexpected error occurred: {e}")
