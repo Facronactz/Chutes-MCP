@@ -1,28 +1,36 @@
-import os
-from loguru import logger
+import aiohttp
+from src.utils.log import log
 import requests
 import uuid
-from typing import Optional, Union
+from typing import Optional, Union, Annotated
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 from src.mcp_instance import mcp
 from src.config import config
 from fastmcp.utilities.types import File
 from src.utils.imagekit_uploader import upload_to_imagekit
+from pydantic import Field
 
 @mcp.tool(
     name="generate_video_from_text",
-    description="Generates a video from a text prompt. By default, uploads the video to ImageKit as a side effect."
+    description="Generates a video from a text prompt. By default, uploads the video to ImageKit as a side effect.",
+    annotations={
+        "title": "Generate Video from Text",
+        "readOnlyHint": False,  # Because it uploads the video
+        "openWorldHint": True   # Because it calls an external API
+    }
 )
-def generate_video_from_text(
-    prompt: str,
-    negative_prompt: Optional[str] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
-    resolution: str = "832*480",
-    fps: int = 24,
-    frames: int = 81,
-    steps: int = 25,
-    guidance_scale: float = 5.0,
-    seed: Optional[int] = 42,
-    save_to_file: bool = True,
+async def generate_video_from_text( # Changed to async def
+    context: Context,
+    prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
+    negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
+    resolution: Annotated[str, Field(description="The resolution of the video (e.g., '832*480', '1024*576').")] = "832*480",
+    fps: Annotated[int, Field(description="The frames per second of the video.", ge=1, le=60)] = 24,
+    frames: Annotated[int, Field(description="The number of frames to generate for the video.", ge=1)] = 81,
+    steps: Annotated[int, Field(description="The number of denoising steps.", ge=1, le=100)] = 25,
+    guidance_scale: Annotated[float, Field(description="A parameter to control how much the model should follow the prompt.", ge=1.0, le=20.0)] = 5.0,
+    seed: Annotated[Optional[int], Field(description="A seed for reproducible generation. If None, a random seed is used.")] = 42,
+    save_to_file: Annotated[bool, Field(description="If True, uploads the generated video to ImageKit for persistent storage and URL access.")] = True,
 ) -> Union[File, str]:
     """
     Generates a video using the Chutes text-to-video generation API.
@@ -38,17 +46,24 @@ def generate_video_from_text(
     :param save_to_file: If True, uploads the video to ImageKit as a side effect.
     :return: A File object on success, or an error message string.
     """
-    logger.info("Entering generate_video_from_text function.")
-    logger.debug(f"Generate Video from Text Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', resolution='{resolution}', fps={fps}, frames={frames}, steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+    await log.info("Entering generate_video_from_text function.")
+    await log.debug(f"Generate Video from Text Parameters: prompt='{prompt}', negative_prompt='{negative_prompt}', resolution='{resolution}', fps={fps}, frames={frames}, steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing text-to-video generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_text.")
+        await log.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_text.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.text_to_video")
     if not video_endpoint:
-        logger.warning("Text-to-video endpoint not configured in config.yaml for generate_video_from_text.")
+        await log.warning("Text-to-video endpoint not configured in config.yaml for generate_video_from_text.")
         raise ToolError("Text-to-video endpoint not configured in config.yaml.")
 
     headers = {
@@ -68,19 +83,25 @@ def generate_video_from_text(
     }
 
     try:
-        logger.info(f"Calling Chutes Text-to-Video API at {video_endpoint} for video generation.")
-        response = requests.post(
-            video_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        video_data = response.content
-        logger.info("Successfully received video data from Chutes Text-to-Video API.")
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Text-to-Video API for generation.")
+        await log.info(f"Calling Chutes Text-to-Video API at {video_endpoint} for video generation.")
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                video_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                video_data = await response.read() # Changed to await response.read()
+        await log.info("Successfully received video data from Chutes Text-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
-            logger.debug("Uploading generated video to ImageKit.")
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
+            await log.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.text_to_video"),
                 "prompt": prompt,
@@ -94,32 +115,39 @@ def generate_video_from_text(
             }
             url = upload_to_imagekit(video_data, "generated_video_from_text", metadata, "mp4")
             if url:
-                logger.info(f"Generated video uploaded to ImageKit: {url}")
+                await log.info(f"Generated video uploaded to ImageKit: {url}")
             else:
-                logger.error("Failed to upload generated video to ImageKit.")
+                await log.error("Failed to upload generated video to ImageKit.")
         
-        logger.info("Exiting generate_video_from_text function with successful response.")
+        await context.report_progress(progress=total_steps, total=total_steps, message="Video generation complete. Returning result.")
+        await log.info("Exiting generate_video_from_text function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes Text-to-Video API in generate_video_from_text: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        await log.error(f"AIOHTTP ClientError calling Chutes Text-to-Video API in generate_video_from_text: {e}")
         raise ToolError(f"Error calling Chutes Text-to-Video API: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred in generate_video_from_text: {e}", exc_info=True)
+        await log.error(f"An unexpected error occurred in generate_video_from_text: {e}", exc_info=True)
         raise ToolError(f"An unexpected error occurred: {e}")
 
 @mcp.tool(
     name="generate_video_from_image",
-    description="Generates a video from an image and prompt. By default, uploads the video to ImageKit as a side effect."
+    description="Generates a video from an image and prompt. By default, uploads the video to ImageKit as a side effect.",
+    annotations={
+        "title": "Generate Video from Image",
+        "readOnlyHint": False,  # Because it uploads the video
+        "openWorldHint": True   # Because it calls an external API
+    }
 )
-def generate_video_from_image(
-    prompt: str,
-    image_b64: str,
-    negative_prompt: Optional[str] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
-    steps: int = 25,
-    guidance_scale: float = 5.0,
-    seed: Optional[int] = 42,
-    save_to_file: bool = True,
+async def generate_video_from_image( # Changed to async def
+    context: Context,
+    prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
+    image_b64: Annotated[str, Field(description="A base64 encoded image to use as the starting point for video generation.")],
+    negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
+    steps: Annotated[int, Field(description="The number of denoising steps.", ge=1, le=100)] = 25,
+    guidance_scale: Annotated[float, Field(description="A parameter to control how much the model should follow the prompt.", ge=1.0, le=20.0)] = 5.0,
+    seed: Annotated[Optional[int], Field(description="A seed for reproducible generation. If None, a random seed is used.")] = 42,
+    save_to_file: Annotated[bool, Field(description="If True, uploads the generated video to ImageKit for persistent storage and URL access.")] = True,
 ) -> Union[File, str]:
     """
     Generates a video using the Chutes image-to-video generation API.
@@ -133,17 +161,24 @@ def generate_video_from_image(
     :param save_to_file: If True, uploads the video to ImageKit as a side effect.
     :return: A File object on success, or an error message string.
     """
-    logger.info("Entering generate_video_from_image function.")
-    logger.debug(f"Generate Video from Image Parameters: prompt='{prompt}', image_b64={'<present>' if image_b64 else '<absent>'}, negative_prompt='{negative_prompt}', steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+    await log.info("Entering generate_video_from_image function.")
+    await log.debug(f"Generate Video from Image Parameters: prompt='{prompt}', image_b64={'<present>' if image_b64 else '<absent>'}, negative_prompt='{negative_prompt}', steps={steps}, guidance_scale={guidance_scale}, seed={seed}, save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image-to-video generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image.")
+        await log.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.image_to_video")
     if not video_endpoint:
-        logger.warning("Image-to-video endpoint not configured in config.yaml for generate_video_from_image.")
+        await log.warning("Image-to-video endpoint not configured in config.yaml for generate_video_from_image.")
         raise ToolError("Image-to-video endpoint not configured in config.yaml.")
 
     headers = {
@@ -161,19 +196,25 @@ def generate_video_from_image(
     }
 
     try:
-        logger.info(f"Calling Chutes Image-to-Video API at {video_endpoint} for video generation.")
-        response = requests.post(
-            video_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        video_data = response.content
-        logger.info("Successfully received video data from Chutes Image-to-Video API.")
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Image-to-Video API for generation.")
+        await log.info(f"Calling Chutes Image-to-Video API at {video_endpoint} for video generation.")
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                video_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                video_data = await response.read() # Changed to await response.read()
+        await log.info("Successfully received video data from Chutes Image-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
-            logger.debug("Uploading generated video to ImageKit.")
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
+            await log.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.image_to_video"),
                 "prompt": prompt,
@@ -184,35 +225,42 @@ def generate_video_from_image(
             }
             url = upload_to_imagekit(video_data, "generated_video_from_image", metadata, "mp4")
             if url:
-                logger.info(f"Generated video uploaded to ImageKit: {url}")
+                await log.info(f"Generated video uploaded to ImageKit: {url}")
             else:
-                logger.error("Failed to upload generated video to ImageKit.")
+                await log.error("Failed to upload generated video to ImageKit.")
         
-        logger.info("Exiting generate_video_from_image function with successful response.")
+        await context.report_progress(progress=total_steps, total=total_steps, message="Video generation complete. Returning result.")
+        await log.info("Exiting generate_video_from_image function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes Image-to-Video API in generate_video_from_image: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        await log.error(f"AIOHTTP ClientError calling Chutes Image-to-Video API in generate_video_from_image: {e}")
         raise ToolError(f"Error calling Chutes Image-to-Video API: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred in generate_video_from_image: {e}", exc_info=True)
+        await log.error(f"An unexpected error occurred in generate_video_from_image: {e}", exc_info=True)
         raise ToolError(f"An unexpected error occurred: {e}")
 @mcp.tool(
     name="generate_video_from_image_fast",
-    description="Generates a video from an image using a fast model. By default, uploads the video to ImageKit as a side effect."
+    description="Generates a video from an image using a fast model. By default, uploads the video to ImageKit as a side effect.",
+    annotations={
+        "title": "Generate Video from Image (Fast)",
+        "readOnlyHint": False,  # Because it uploads the video
+        "openWorldHint": True   # Because it calls an external API
+    }
 )
-def generate_video_from_image_fast(
-    prompt: str,
-    image: str,
-    negative_prompt: Optional[str] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
-    fps: int = 16,
-    frames: int = 81,
-    guidance_scale: float = 1.0,
-    guidance_scale_2: float = 1.0,
-    seed: Optional[int] = None,
-    fast: bool = True,
-    resolution: str = "480p",
-    save_to_file: bool = True,
+async def generate_video_from_image_fast( # Changed to async def
+    context: Context,
+    prompt: Annotated[str, Field(description="A text description of the desired video to generate.")],
+    image: Annotated[str, Field(description="Image URL or base64 encoded data to use as the starting point for video generation.")],
+    negative_prompt: Annotated[Optional[str], Field(description="A text description of what to avoid in the video.")] = "Vibrant colors, overexposed, static, blurry details, subtitles, style, artwork, painting, picture, still, overall grayish, worst quality, low quality, JPEG compression artifacts, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn face, deformed, disfigured, malformed limbs, fused fingers, motionless image, cluttered background, three legs, many people in the background, walking backwards, slow motion",
+    fps: Annotated[int, Field(description="The frames per second of the video.", ge=1, le=60)] = 16,
+    frames: Annotated[int, Field(description="The number of frames to generate for the video.", ge=1)] = 81,
+    guidance_scale: Annotated[float, Field(description="A parameter to control how much the model should follow the prompt.", ge=1.0, le=20.0)] = 1.0,
+    guidance_scale_2: Annotated[float, Field(description="A second guidance scale parameter for fine-tuning.", ge=1.0, le=20.0)] = 1.0,
+    seed: Annotated[Optional[int], Field(description="A seed for reproducible generation. If None, a random seed is used.")] = None,
+    fast: Annotated[bool, Field(description="Enables ultra fast Pruna mode for quicker generation.")] = True,
+    resolution: Annotated[str, Field(description="The resolution of the video (e.g., '480p', '720p', '1080p').")] = "480p",
+    save_to_file: Annotated[bool, Field(description="If True, uploads the generated video to ImageKit for persistent storage and URL access.")] = True,
 ) -> Union[File, str]:
     """
     Generates a video from an image using the fast Chutes image-to-video API.
@@ -230,17 +278,24 @@ def generate_video_from_image_fast(
     :param save_to_file: If True, uploads the video to ImageKit as a side effect.
     :return: A File object on success, or an error message string.
     """
-    logger.info("Entering generate_video_from_image_fast function.")
-    logger.debug(f"Generate Video from Image Fast Parameters: prompt='{prompt}', image={'<present>' if image else '<absent>'}, negative_prompt='{negative_prompt}', fps={fps}, frames={frames}, guidance_scale={guidance_scale}, guidance_scale_2={guidance_scale_2}, seed={seed}, fast={fast}, resolution='{resolution}', save_to_file={save_to_file}")
+    await log.info("Entering generate_video_from_image_fast function.")
+    await log.debug(f"Generate Video from Image Fast Parameters: prompt='{prompt}', image={'<present>' if image else '<absent>'}, negative_prompt='{negative_prompt}', fps={fps}, frames={frames}, guidance_scale={guidance_scale}, guidance_scale_2={guidance_scale_2}, seed={seed}, fast={fast}, resolution='{resolution}', save_to_file={save_to_file}")
+
+    base_steps = 3  # Prepare, Call API, Receive Data
+    total_steps = base_steps + (1 if save_to_file else 0)
+    current_progress = 0
+
+    await context.report_progress(progress=current_progress, total=total_steps, message="Initializing fast image-to-video generation request.")
+    current_progress += 1
 
     api_token = config.get("chutes.api_token")
     if not api_token:
-        logger.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image_fast.")
+        await log.warning("CHUTES_API_TOKEN environment variable not set for generate_video_from_image_fast.")
         raise ToolError("CHUTES_API_TOKEN environment variable not set.")
 
     video_endpoint = config.get("chutes.endpoints.image_to_video_fast")
     if not video_endpoint:
-        logger.warning("Fast image-to-video endpoint not configured in config.yaml for generate_video_from_image_fast.")
+        await log.warning("Fast image-to-video endpoint not configured in config.yaml for generate_video_from_image_fast.")
         raise ToolError("Fast image-to-video endpoint not configured in config.yaml.")
 
     headers = {
@@ -262,19 +317,25 @@ def generate_video_from_image_fast(
     }
 
     try:
-        logger.info(f"Calling Chutes Fast Image-to-Video API at {video_endpoint} for video generation.")
-        response = requests.post(
-            video_endpoint,
-            headers=headers,
-            json=body
-        )
-        response.raise_for_status()
-        video_data = response.content
-        logger.info("Successfully received video data from Chutes Fast Image-to-Video API.")
+        await context.report_progress(progress=current_progress, total=total_steps, message="Calling Chutes Fast Image-to-Video API for generation.")
+        await log.info(f"Calling Chutes Fast Image-to-Video API at {video_endpoint} for video generation.")
+        async with aiohttp.ClientSession() as session: # Changed to aiohttp
+            async with session.post( # Changed to aiohttp
+                video_endpoint,
+                headers=headers,
+                json=body
+            ) as response:
+                response.raise_for_status()
+                video_data = await response.read() # Changed to await response.read()
+        await log.info("Successfully received video data from Chutes Fast Image-to-Video API.")
+        current_progress += 1
+        await context.report_progress(progress=current_progress, total=total_steps, message="Video data received.")
 
         url = None
         if save_to_file:
-            logger.debug("Uploading generated video to ImageKit.")
+            current_progress += 1
+            await context.report_progress(progress=current_progress, total=total_steps, message="Uploading generated video to ImageKit.")
+            await log.debug("Uploading generated video to ImageKit.")
             metadata = {
                 "model": config.get("metadata.models.image_to_video_fast"),
                 "prompt": prompt,
@@ -289,16 +350,17 @@ def generate_video_from_image_fast(
             }
             url = upload_to_imagekit(video_data, "generated_video_from_image_fast", metadata, "mp4")
             if url:
-                logger.info(f"Generated video uploaded to ImageKit: {url}")
+                await log.info(f"Generated video uploaded to ImageKit: {url}")
             else:
-                logger.error("Failed to upload generated video to ImageKit.")
+                await log.error("Failed to upload generated video to ImageKit.")
         
-        logger.info("Exiting generate_video_from_image_fast function with successful response.")
+        await context.report_progress(progress=total_steps, total=total_steps, message="Fast image-to-video generation complete. Returning result.")
+        await log.info("Exiting generate_video_from_image_fast function with successful response.")
         return File(data=video_data, format="mp4", annotations={"imagekit_url": url} if url else None)
 
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling Chutes Fast Image-to-Video API in generate_video_from_image_fast: {e}")
+    except aiohttp.ClientError as e: # Changed exception type
+        await log.error(f"AIOHTTP ClientError calling Chutes Fast Image-to-Video API in generate_video_from_image_fast: {e}")
         raise ToolError(f"Error calling Chutes Fast Image-to-Video API: {e}")
     except Exception as e:
-        logger.error(f"An unexpected error occurred in generate_video_from_image_fast: {e}", exc_info=True)
+        await log.error(f"An unexpected error occurred in generate_video_from_image_fast: {e}", exc_info=True)
         raise ToolError(f"An unexpected error occurred: {e}")
