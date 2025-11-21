@@ -59,6 +59,10 @@ async def generate_image(
     await context.report_progress(progress=current_progress, total=total_steps, message="Initializing image generation request.")
     current_progress += 1
 
+    if prompt.strip() == "":
+        await context.error("Prompt for image generation cannot be empty.")
+        raise ToolError("Prompt for image generation cannot be empty.")
+
     if num_inference_steps > 60:
         await context.error(f"num_inference_steps (got {num_inference_steps}) cannot exceed 60.")
         raise ToolError("num_inference_steps cannot exceed 60.")
